@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sparseindex-service-config
+  namespace: audito
+data:
+  BM25_CACHE_DIR: "/data/bm25_cache"

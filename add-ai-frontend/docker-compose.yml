@@ -1,0 +1,13 @@
+# Standalone: builds the frontend against whatever VITE_API_BASE_URL you
+# give it. Point it at a running add-ai-backend (its own compose, or
+# the shared one from add-ai-orchestration) — this repo has no other
+# runtime dependency.
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    image: add-ai-frontend:local
+    ports:
+      - "3000:3000"

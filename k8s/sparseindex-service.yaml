@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sparseindex-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sparseindex-service
+  template:
+    metadata:
+      labels:
+        app: sparseindex-service
+    spec:
+      containers:
+        - name: sparseindex-service
+          image: yashhanamghar/audito-sparseindex-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8005
+
+          envFrom:
+            - configMapRef:
+                name: sparseindex-service-config
+
+          volumeMounts:
+            - name: sparseindex-storage
+              mountPath: /data/bm25_cache
+
+      volumes:
+        - name: sparseindex-storage
+          persistentVolumeClaim:
+            claimName: sparseindex-storage
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sparseindex-service
+  namespace: audito
+spec:
+  selector:
+    app: sparseindex-service
+  ports:
+    - protocol: TCP
+      port: 8005
+      targetPort: 8005
+  type: ClusterIP

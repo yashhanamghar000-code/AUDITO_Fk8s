@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reranker-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reranker-service
+  template:
+    metadata:
+      labels:
+        app: reranker-service
+    spec:
+      containers:
+        - name: reranker-service
+          image: yashhanamghar/audito-reranker-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8002
+
+          envFrom:
+            - configMapRef:
+                name: reranker-service-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reranker-service
+  namespace: audito
+spec:
+  selector:
+    app: reranker-service
+  ports:
+    - protocol: TCP
+      port: 8002
+      targetPort: 8002
+  type: ClusterIP

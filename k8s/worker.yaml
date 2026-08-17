@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: yashhanamghar/audito-worker:latest
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /data/storage
+      volumes:
+        - name: backend-storage
+          persistentVolumeClaim:
+            claimName: backend-storage

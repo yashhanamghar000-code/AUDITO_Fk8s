@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-service
+  template:
+    metadata:
+      labels:
+        app: llm-service
+    spec:
+      containers:
+        - name: llm-service
+          image: yashhanamghar/audito-llm-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8003
+          envFrom:
+            - configMapRef:
+                name: llm-service-config
+            - secretRef:
+                name: llm-service-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-service
+  namespace: audito
+spec:
+  selector:
+    app: llm-service
+  ports:
+    - protocol: TCP
+      port: 8003
+      targetPort: 8003
+  type: ClusterIP

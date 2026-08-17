@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vectorstore-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vectorstore-service
+  template:
+    metadata:
+      labels:
+        app: vectorstore-service
+    spec:
+      containers:
+        - name: vectorstore-service
+          image: yashhanamghar/audito-vectorstore-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8004
+          envFrom:
+            - configMapRef:
+                name: vectorstore-service-config
+            - secretRef:
+                name: vectorstore-service-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vectorstore-service
+  namespace: audito
+spec:
+  selector:
+    app: vectorstore-service
+  ports:
+    - protocol: TCP
+      port: 8004
+      targetPort: 8004
+  type: ClusterIP

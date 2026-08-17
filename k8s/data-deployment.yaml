@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: data-service
+  namespace: audito
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: data-service
+
+  template:
+    metadata:
+      labels:
+        app: data-service
+
+    spec:
+      containers:
+        - name: data-service
+
+          image: yashhanamghar/audito-data-service:latest
+
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8007
+
+          envFrom:
+            - secretRef:
+                name: data-env

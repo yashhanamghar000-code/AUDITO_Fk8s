@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reranker-service-config
+  namespace: audito
+data:
+  RERANKER_MODEL: "cross-encoder/ms-marco-MiniLM-L-6-v2"

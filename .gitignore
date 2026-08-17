@@ -1,0 +1,90 @@
+# ==============================
+# Secrets & credentials (ANY folder, ANY depth)
+# ==============================
+.env
+.env.*
+*.env
+env/
+**/env/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*credentials*.json
+*secret*
+*Secret*
+*SECRET*
+kubeconfig
+*.kubeconfig
+tls.crt
+tls.key
+kind-config.yaml
+
+# ==============================
+# Python (auth-service, backend, data-service, embeddings-service,
+# llm-service, parsing-service, reranker-service, sparseindex-service,
+# vectorstore-service, worker, core)
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env.bak/
+venv.bak/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# ==============================
+# Node / React (frontend)
+# ==============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+build/
+.next/
+.turbo/
+.cache/
+
+# ==============================
+# Docker / container artifacts
+# ==============================
+*.tar
+*.tar.gz
+
+# ==============================
+# OS / editor junk
+# ==============================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ==============================
+# Logs
+# ==============================
+*.log
+logs/
+debug_logs/
+
+# ==============================
+# Zip / archive of this repo itself
+# ==============================
+AUDITO.zip
+__MACOSX/

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: yashhanamghar/audito-auth-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8008
+          env:
+            - name: DATA_SERVICE_URL
+              value: "http://data-service:8007"
+
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: auth-service-secret
+                  key: JWT_SECRET_KEY
+
+            - name: JWT_ALGORITHM
+              value: "HS256"
+
+            - name: JWT_EXPIRE_MINUTES
+              value: "1440"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: audito
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 8008
+      targetPort: 8008
+  type: ClusterIP

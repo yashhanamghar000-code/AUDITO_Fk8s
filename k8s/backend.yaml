@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: yashhanamghar/audito-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /data/storage
+
+            - name: temp-uploads
+              mountPath: /data/temp_uploads
+
+      volumes:
+        - name: backend-storage
+          persistentVolumeClaim:
+            claimName: backend-storage
+
+        - name: temp-uploads
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: audito
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

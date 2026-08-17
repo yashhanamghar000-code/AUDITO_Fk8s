@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embeddings-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: embeddings-service
+  template:
+    metadata:
+      labels:
+        app: embeddings-service
+    spec:
+      containers:
+        - name: embeddings-service
+          image: yashhanamghar/audito-embeddings-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8001
+
+          envFrom:
+            - configMapRef:
+                name: embeddings-service-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embeddings-service
+  namespace: audito
+spec:
+  selector:
+    app: embeddings-service
+  ports:
+    - protocol: TCP
+      port: 8001
+      targetPort: 8001
+  type: ClusterIP

@@ -1,0 +1,9 @@
+# Standalone compose file so this repo can be built and tested completely
+# on its own, with no other ADD_AI repo checked out.
+services:
+  embeddings-service:
+    build: .
+    image: add-ai-embeddings-service:local
+    ports:
+      - "8001:8001"
+    env_file: .env
