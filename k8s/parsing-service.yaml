@@ -14,27 +14,21 @@ spec:
         app: parsing-service
     spec:
       containers:
-        - name: parsing-service
-          image: yashhanamghar/audito-parsing-service:latest
-          imagePullPolicy: Never
-          ports:
-            - containerPort: 8006
-          envFrom:
-            - configMapRef:
-                name: parsing-service-config
-          volumeMounts:
-            - name: parsing-storage
-              mountPath: /data/debug_logs
-            - name: backend-storage
-              mountPath: /data/storage
+      - envFrom:
+        - configMapRef:
+            name: parsing-service-config
+        image: yashhanamghar/audito-parsing-service:latest
+        imagePullPolicy: Never
+        name: parsing-service
+        ports:
+        - containerPort: 8006
+        volumeMounts:
+        - mountPath: /data/storage
+          name: shared-storage-volume
       volumes:
-        - name: parsing-storage
-          persistentVolumeClaim:
-            claimName: audito-shared-pvc
-        - name: backend-storage
-          persistentVolumeClaim:
-            claimName: audito-shared-pvc
-
+      - name: shared-storage-volume
+        persistentVolumeClaim:
+          claimName: audito-shared-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -42,10 +36,10 @@ metadata:
   name: parsing-service
   namespace: audito
 spec:
+  ports:
+  - port: 8006
+    protocol: TCP
+    targetPort: 8006
   selector:
     app: parsing-service
-  ports:
-    - protocol: TCP
-      port: 8006
-      targetPort: 8006
   type: ClusterIP

@@ -14,18 +14,18 @@ spec:
         app: worker
     spec:
       containers:
-        - name: worker
-          image: yashhanamghar/audito-worker:latest
-          imagePullPolicy: Never
-          envFrom:
-            - configMapRef:
-                name: worker-config
-            - secretRef:
-                name: worker-secret
-          volumeMounts:
-            - name: backend-storage
-              mountPath: /data/storage
+      - envFrom:
+        - configMapRef:
+            name: worker-config
+        - secretRef:
+            name: worker-secret
+        image: yashhanamghar/audito-worker:latest
+        imagePullPolicy: Never
+        name: worker
+        volumeMounts:
+        - mountPath: /data/storage
+          name: shared-storage-volume
       volumes:
-        - name: backend-storage
-          persistentVolumeClaim:
-            claimName: audito-shared-pvc
+      - name: shared-storage-volume
+        persistentVolumeClaim:
+          claimName: audito-shared-pvc
