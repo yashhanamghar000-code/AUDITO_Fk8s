@@ -15,6 +15,9 @@ spec:
     spec:
       containers:
         - name: parsing-service
+          volumeMounts:
+            - mountPath: /srv/storage
+              name: shared-storage-volume
           image: yashhanamghar/audito-parsing-service:latest
           imagePullPolicy: Never
           ports:
@@ -49,3 +52,8 @@ spec:
       port: 8006
       targetPort: 8006
   type: ClusterIP
+
+      volumes:
+        - name: shared-storage-volume
+          persistentVolumeClaim:
+            claimName: audito-shared-pvc

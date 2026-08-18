@@ -15,6 +15,9 @@ spec:
     spec:
       containers:
         - name: backend
+          volumeMounts:
+            - mountPath: /srv/storage
+              name: shared-storage-volume
           image: yashhanamghar/audito-backend:latest
           imagePullPolicy: Never
           ports:
@@ -55,3 +58,8 @@ spec:
       port: 8000
       targetPort: 8000
   type: ClusterIP
+
+      volumes:
+        - name: shared-storage-volume
+          persistentVolumeClaim:
+            claimName: audito-shared-pvc
