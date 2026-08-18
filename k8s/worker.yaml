@@ -15,9 +15,6 @@ spec:
     spec:
       containers:
         - name: worker
-          volumeMounts:
-            - mountPath: /srv/storage
-              name: shared-storage-volume
           image: yashhanamghar/audito-worker:latest
           imagePullPolicy: Never
           envFrom:
@@ -30,10 +27,5 @@ spec:
               mountPath: /data/storage
       volumes:
         - name: backend-storage
-          persistentVolumeClaim:
-            claimName: backend-storage
-
-      volumes:
-        - name: shared-storage-volume
           persistentVolumeClaim:
             claimName: audito-shared-pvc

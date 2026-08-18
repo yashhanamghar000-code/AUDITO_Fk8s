@@ -18,9 +18,6 @@ spec:
     spec:
       containers:
         - name: postgres
-          volumeMounts:
-            - mountPath: /srv/storage
-              name: shared-storage-volume
           image: postgres:16
 
           ports:
@@ -44,8 +41,3 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
-
-      volumes:
-        - name: shared-storage-volume
-          persistentVolumeClaim:
-            claimName: audito-shared-pvc

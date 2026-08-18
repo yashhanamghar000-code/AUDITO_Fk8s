@@ -20,9 +20,6 @@ spec:
     spec:
       containers:
         - name: data-service
-          volumeMounts:
-            - mountPath: /srv/storage
-              name: shared-storage-volume
 
           image: yashhanamghar/audito-data-service:latest
 
@@ -34,8 +31,3 @@ spec:
           envFrom:
             - secretRef:
                 name: data-env
-
-      volumes:
-        - name: shared-storage-volume
-          persistentVolumeClaim:
-            claimName: audito-shared-pvc
