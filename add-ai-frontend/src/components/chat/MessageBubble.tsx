@@ -55,7 +55,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 }
 
 function UserAvatar() {
-  const { user } = useAuth();
+  const { speakingMessageId, toggleSpeak,  user } = useAuth();
   const initial = (user?.name ?? "U").slice(0, 1).toUpperCase();
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
@@ -65,7 +65,7 @@ function UserAvatar() {
 }
 
 export function MessageBubble({ message, isLast }: { message: Message; isLast?: boolean }) {
-  const { regenerate, reactMessage, isStreaming, sendMessage } = useChat();
+  const { speakingMessageId, toggleSpeak,  regenerate, reactMessage, isStreaming, sendMessage } = useChat();
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
 
@@ -166,6 +166,17 @@ export function MessageBubble({ message, isLast }: { message: Message; isLast?: 
               }}
             >
               <Share2, Volume2, VolumeX className="h-3.5 w-3.5" />
+            </IconAction>
+            <IconAction
+              label={speakingMessageId === message.id ? "Stop" : "Listen"}
+              onClick={() => toggleSpeak(message.id, message.content)}
+              active={speakingMessageId === message.id}
+            >
+              {speakingMessageId === message.id ? (
+                <VolumeX className="h-3.5 w-3.5" />
+              ) : (
+                <Volume2 className="h-3.5 w-3.5" />
+              )}
             </IconAction>
           </div>
         )}
