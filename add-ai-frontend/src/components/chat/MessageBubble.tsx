@@ -6,7 +6,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   RefreshCw,
-  Share2,
+  Share2, Volume2, VolumeX,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -165,7 +165,7 @@ export function MessageBubble({ message, isLast }: { message: Message; isLast?: 
                 toast.success("Response copied to clipboard");
               }}
             >
-              <Share2 className="h-3.5 w-3.5" />
+              <Share2, Volume2, VolumeX className="h-3.5 w-3.5" />
             </IconAction>
           </div>
         )}

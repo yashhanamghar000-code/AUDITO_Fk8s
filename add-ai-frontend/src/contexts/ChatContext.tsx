@@ -1,3 +1,4 @@
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import {
   createContext,
   useCallback,
@@ -35,6 +36,9 @@ interface ChatContextValue {
   stopGeneration: () => void;
   regenerate: (messageId: string) => Promise<void>;
   reactMessage: (messageId: string, liked: boolean | null) => void;
+  speakingMessageId: string | null;
+  toggleSpeak: (messageId: string, text: string) => void;
+  stopSpeaking: () => void;
 
   uploadDocument: (file: File) => Promise<void>;
   removeDocument: (id: string) => void;
@@ -471,7 +475,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }, 1200);
 
-      return () => {
+        const { speakingId, toggle: toggleSpeak, stop: stopSpeaking } = useTextToSpeech();
+
+  return () => {
         cancelled = true;
         clearInterval(interval);
       };
@@ -569,6 +575,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     stopGeneration,
     regenerate,
     reactMessage,
+    speakingMessageId: speakingId,
+    toggleSpeak,
+    stopSpeaking,
     uploadDocument,
     removeDocument,
     toggleDocumentSelection,

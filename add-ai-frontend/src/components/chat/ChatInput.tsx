@@ -1,3 +1,4 @@
+import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { motion } from "framer-motion";
 import { ArrowUp, Paperclip, Mic, Square } from "lucide-react";
@@ -9,6 +10,12 @@ import { toast } from "sonner";
 export function ChatInput() {
   const { sendMessage, isStreaming, stopGeneration, uploadDocument } = useChat();
   const [value, setValue] = useState("");
+  const { isSupported: micSupported, isListening, toggle: toggleMic } = useSpeechToText({
+    onFinalResult: (transcript) => {
+      setValue((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    },
+  });
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +76,7 @@ export function ChatInput() {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKey}
           rows={1}
-          placeholder="Ask AUDITO AI anything..."
+          placeholder={isListening ? "Listening…" : "Ask AUDITO AI anything..."}
           className={cn(
             "min-h-[36px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground",
           )}
