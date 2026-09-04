@@ -4,15 +4,14 @@ from typing import List, Tuple
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from app.client import AzureLlmClient
+from app.client import MistralLlmClient
 
 app = FastAPI(title="add-ai-llm-service")
 
-_client = AzureLlmClient(
-    deployment=os.environ["AZURE_LLM_DEPLOYMENT"],
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
-    api_key=os.environ["MY_API_KEY"],
-    endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+_client = MistralLlmClient(
+    model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"),
+    api_key=os.environ["MISTRAL_API_KEY"],
+    endpoint=os.getenv("MISTRAL_ENDPOINT", "https://api.mistral.ai/v1"),
     temperature=float(os.getenv("LLM_TEMPERATURE", "0.1")),
 )
 

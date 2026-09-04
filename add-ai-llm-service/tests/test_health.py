@@ -1,7 +1,7 @@
 import os
-os.environ.setdefault("AZURE_LLM_DEPLOYMENT", "dummy")
-os.environ.setdefault("MY_API_KEY", "dummy")
-os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://dummy.openai.azure.com/")
+os.environ.setdefault("MISTRAL_API_KEY", "dummy")
+os.environ.setdefault("MISTRAL_ENDPOINT", "https://api.mistral.ai/v1")
+os.environ.setdefault("MISTRAL_MODEL", "mistral-large-latest")
 
 from fastapi.testclient import TestClient
 from app.main import app

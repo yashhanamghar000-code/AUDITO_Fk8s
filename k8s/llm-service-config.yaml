@@ -4,6 +4,6 @@ metadata:
   name: llm-service-config
   namespace: audito
 data:
-  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
-  AZURE_LLM_DEPLOYMENT: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+  MISTRAL_ENDPOINT: "https://api.mistral.ai/v1"
+  MISTRAL_MODEL: "mistral-large-latest"
   LLM_TEMPERATURE: "0.1"
