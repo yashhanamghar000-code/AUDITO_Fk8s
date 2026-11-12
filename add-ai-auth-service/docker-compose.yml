@@ -1,0 +1,35 @@
+# Standalone: brings up its own data-service + Postgres, so this repo is
+# fully testable without the rest of the platform. Uses the published
+# add-ai-data-service image — pull it, or point DATA_SERVICE_URL at one
+# you've built locally.
+services:
+  auth-service:
+    build: .
+    image: add-ai-auth-service:local
+    ports:
+      - "8008:8008"
+    env_file: .env
+    depends_on:
+      - data-service
+  data-service:
+    image: add-ai-data-service:local
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/add_ai
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: add_ai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+volumes:
+  pg_data:

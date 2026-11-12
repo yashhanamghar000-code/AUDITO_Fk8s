@@ -1,0 +1,129 @@
+# add-ai-orchestration/docker-compose.dev.yml
+#
+# Local development across the WHOLE platform at once: every service
+# gets its own source bind-mounted in, `add-ai-core` installed editable,
+# and its dev server run with --reload/hot-reload. Use this instead of
+# the plain docker-compose.yml when you're actively changing code in
+# more than one repo and don't want to rebuild images for every edit.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Each `build: context:` below points at the SIBLING repo's own
+# Dockerfile — compose builds from source and tags the result with the
+# same image name the base file already declares, so nothing else about
+# docker-compose.yml needs to change.
+services:
+  frontend:
+    build:
+      context: ../add-ai-frontend
+      target: build
+    volumes:
+      - ../add-ai-frontend/src:/srv/src
+      - ../add-ai-frontend/public:/srv/public
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host 0.0.0.0
+
+  backend:
+    build:
+      context: ../add-ai-backend
+    volumes:
+      - ../add-ai-backend/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+      - storage:/data/storage
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    build:
+      context: ../add-ai-worker
+    volumes:
+      - ../add-ai-worker/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+      - storage:/data/storage
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             celery -A app.celery_app.celery_app worker --loglevel=info --concurrency=1"
+
+  auth-service:
+    build:
+      context: ../add-ai-auth-service
+    volumes:
+      - ../add-ai-auth-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8008 --reload"
+
+  data-service:
+    build:
+      context: ../add-ai-data-service
+    volumes:
+      - ../add-ai-data-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8007 --reload"
+
+  embeddings-service:
+    build:
+      context: ../add-ai-embeddings-service
+    volumes:
+      - ../add-ai-embeddings-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+
+  reranker-service:
+    build:
+      context: ../add-ai-reranker-service
+    volumes:
+      - ../add-ai-reranker-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload"
+
+  llm-service:
+    build:
+      context: ../add-ai-llm-service
+    volumes:
+      - ../add-ai-llm-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload"
+
+  vectorstore-service:
+    build:
+      context: ../add-ai-vectorstore-service
+    volumes:
+      - ../add-ai-vectorstore-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload"
+
+  sparseindex-service:
+    build:
+      context: ../add-ai-sparseindex-service
+    volumes:
+      - ../add-ai-sparseindex-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+      - bm25_cache:/data/bm25_cache
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload"
+
+  parsing-service:
+    build:
+      context: ../add-ai-parsing-service
+    volumes:
+      - ../add-ai-parsing-service/app:/srv/app
+      - ../add-ai-core:/add-ai-core
+      - debug_logs:/data/debug_logs
+    command: >
+      sh -c "pip install -e /add-ai-core &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8006 --reload"

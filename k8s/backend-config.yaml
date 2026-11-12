@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: audito
+data:
+  EMBEDDINGS_SERVICE_URL: "http://embeddings-service:8001"
+  RERANKER_SERVICE_URL: "http://reranker-service:8002"
+  LLM_SERVICE_URL: "http://llm-service:8003"
+  VECTORSTORE_SERVICE_URL: "http://vectorstore-service:8004"
+  SPARSEINDEX_SERVICE_URL: "http://sparseindex-service:8005"
+  DATA_SERVICE_URL: "http://data-service:8007"
+  AUTH_SERVICE_URL: "http://auth-service:8008"
+  TOP_K_PER_QUERY: "15"
+  FINAL_DOCS_PER_QUERY: "6"
+  MAX_TOTAL_CONTEXT_DOCS: "18"
+  STORAGE_DIR: "/data/storage"
+  TEMP_UPLOAD_DIR: "/data/temp_uploads"
+  MAIL_FROM_EMAIL: "onboarding@resend.dev"
+  MAIL_FROM_NAME: "AUDITO AI"
+  APP_NAME: "AUDITO AI"
+  FRONTEND_URL: "http://localhost:3000"

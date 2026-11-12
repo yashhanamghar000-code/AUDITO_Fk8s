@@ -1,0 +1,13 @@
+.git
+.git/**
+**/.DS_Store
+**/node_modules
+**/.output
+**/dist
+**/build
+**/venv
+**/.venv
+**/__pycache__
+**/*.pyc
+__MACOSX
+*.zip

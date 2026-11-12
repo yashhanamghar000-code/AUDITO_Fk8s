@@ -1,0 +1,11 @@
+services:
+  parsing-service:
+    build: .
+    image: add-ai-parsing-service:local
+    ports:
+      - "8006:8006"
+    env_file: .env
+    volumes:
+      - debug_logs:/data/debug_logs
+volumes:
+  debug_logs:

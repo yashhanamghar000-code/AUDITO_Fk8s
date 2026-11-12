@@ -1,0 +1,11 @@
+services:
+  sparseindex-service:
+    build: .
+    image: add-ai-sparseindex-service:local
+    ports:
+      - "8005:8005"
+    env_file: .env
+    volumes:
+      - bm25_cache:/data/bm25_cache
+volumes:
+  bm25_cache:

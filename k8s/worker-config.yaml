@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+  namespace: audito
+data:
+  PARSING_SERVICE_URL: "http://parsing-service:8006"
+  EMBEDDINGS_SERVICE_URL: "http://embeddings-service:8001"
+  VECTORSTORE_SERVICE_URL: "http://vectorstore-service:8004"
+  SPARSEINDEX_SERVICE_URL: "http://sparseindex-service:8005"
+  DATA_SERVICE_URL: "http://data-service:8007"

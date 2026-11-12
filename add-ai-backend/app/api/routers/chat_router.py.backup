@@ -1,0 +1,111 @@
+import traceback
+from types import SimpleNamespace
+
+from fastapi import APIRouter, Depends, Form, HTTPException
+
+from app.api.dependencies import get_container, get_current_user
+from app.container import Container
+
+router = APIRouter(prefix="/api", tags=["chat"])
+
+
+@router.post("/chat")
+async def secure_chat(
+    query: str = Form(...),
+    session_id: str = Form(...),
+    file_ids: str = Form(None),
+    container: Container = Depends(get_container),
+    current_user: SimpleNamespace = Depends(get_current_user),
+):
+    user_id = str(current_user.id)
+
+    try:
+        # Get only files that actually belong to this user's current conversation.
+        session_files = (
+            container.history_service.list_files_for_conversation(
+                current_user.id,
+                session_id,
+            )
+        )
+
+        # Normalize DB file IDs to strings.
+        # This avoids mismatches like 10 != "10".
+        indexed_file_ids = {
+            str(f["id"])
+            for f in session_files
+            if str(f.get("status", "")).lower() == "indexed"
+        }
+
+        # No indexed documents available for this conversation.
+        if not indexed_file_ids:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No documents are available in this conversation. "
+                    "Upload and index a document before asking a question."
+                ),
+            )
+
+        # Convert selected frontend file IDs to clean strings.
+        requested_file_ids = (
+            [
+                file_id.strip()
+                for file_id in file_ids.split(",")
+                if file_id.strip()
+            ]
+            if file_ids
+            else []
+        )
+
+        # If the user explicitly selected documents,
+        # only use documents that still exist and are indexed
+        # inside this same conversation.
+        if requested_file_ids:
+            selected_file_ids = [
+                file_id
+                for file_id in requested_file_ids
+                if file_id in indexed_file_ids
+            ]
+
+            if not selected_file_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "The selected document(s) are no longer available "
+                        "or are not indexed. Please refresh and try again."
+                    ),
+                )
+
+        else:
+            # If no specific documents were selected,
+            # use every indexed document in this conversation.
+            selected_file_ids = list(indexed_file_ids)
+
+        # Run the RAG workflow.
+        answer = container.chat_workflow_service.run(
+            query=query,
+            user_id=user_id,
+            session_id=session_id,
+            selected_file_ids=selected_file_ids,
+        )
+
+        # Save the user's question and generated answer.
+        container.history_service.save_chat_turn(
+            current_user.id,
+            session_id,
+            query,
+            answer.response_text,
+        )
+
+        return answer.to_dict()
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM Orchestration Error: {str(e)}",
+        )

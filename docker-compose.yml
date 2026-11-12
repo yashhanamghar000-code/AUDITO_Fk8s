@@ -1,0 +1,233 @@
+# ADD_D / AUDITO AI — single Compose file for the entire platform.
+#
+# Every service below builds its OWN image from its OWN Dockerfile in
+# its OWN folder (`build: ./add-ai-xxx`). This file just wires them
+# together and controls startup order via `depends_on` — it does not
+# duplicate any build logic.
+#
+# Startup order (enforced by depends_on, roughly "step by step"):
+#   1. postgres, qdrant, redis         (data stores)
+#   2. data-service                    (needs postgres healthy)
+#   3. auth-service                    (needs data-service)
+#      embeddings / reranker / llm /
+#      parsing / sparseindex-service   (stateless ML adapters, no deps)
+#      vectorstore-service             (needs qdrant)
+#   4. backend                         (needs every service above)
+#      worker                          (needs the ingestion-path services)
+#   5. frontend                        (needs backend)
+#   6. api-gateway                     (needs frontend + backend) <- only
+#                                          service with a published port
+#
+# Usage:
+#   docker compose up --build          # first run / after code changes
+#   docker compose up -d               # subsequent runs, detached
+#   docker compose up --build --scale worker=3   # scale ingestion workers
+#   docker compose down                # stop
+#   docker compose down -v             # stop AND wipe volumes (DB/vectors/etc.)
+#
+# add-ai-core is a shared Python library (installed via git+https in each
+# service's requirements.txt), not a service — it has no entry here.
+
+services:
+
+  # ============================================================ edge ==
+  # The ONLY service with a published port. Routes /api/* to backend,
+  # everything else to frontend. See add-ai-gateway/kong.yml.
+  # Kong runs DB-less (declarative config file, no Postgres of its own) —
+  # same operational model as the old static nginx.conf, just with a
+  # plugin system and active/passive upstream health checks on top.
+  api-gateway:
+    image: kong:3.7
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "off"          # no admin API surface exposed at all in DB-less mode
+      KONG_STATUS_LISTEN: "0.0.0.0:8100" # Kong's own /status endpoint (its readiness, not the upstreams')
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    volumes:
+      - ./add-ai-gateway/kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - frontend
+      - backend
+
+  frontend:
+    build:
+      context: .
+      dockerfile: add-ai-frontend/Dockerfile
+    image: harshpaygude/audito-frontend:latest
+    restart: unless-stopped
+    # No published port: only reachable from api-gateway on the
+    # internal compose network (http://frontend:3000).
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: add-ai-backend/Dockerfile
+    image: harshpaygude/audito-backend:latest
+    restart: unless-stopped
+    env_file: ./env/backend.env
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      - embeddings-service
+      - reranker-service
+      - llm-service
+      - vectorstore-service
+      - sparseindex-service
+      - data-service
+      - auth-service
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: add-ai-worker/Dockerfile
+    image: harshpaygude/audito-worker:latest
+    restart: unless-stopped
+    command: celery -A app.celery_app worker -Q audito-production --loglevel=info
+    env_file: ./env/worker.env
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      - parsing-service
+      - embeddings-service
+      - vectorstore-service
+      - sparseindex-service
+      - data-service
+      - redis
+    # Scale ingestion independently of the API:
+    #   docker compose up --scale worker=3
+
+  # ======================================================= identity ===
+  auth-service:
+    build:
+      context: .
+      dockerfile: add-ai-auth-service/Dockerfile
+    image: harshpaygude/audito-auth-service:latest
+    restart: unless-stopped
+    env_file: ./env/auth-service.env
+    depends_on:
+      - data-service
+
+  data-service:
+    build:
+      context: .
+      dockerfile: add-ai-data-service/Dockerfile
+    image: harshpaygude/audito-data-service:latest
+    restart: unless-stopped
+    env_file: ./env/data-service.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ==================================================== ML adapters ===
+  embeddings-service:
+    build:
+      context: .
+      dockerfile: add-ai-embeddings-service/Dockerfile
+    image: harshpaygude/audito-embeddings-service:latest
+    restart: unless-stopped
+    env_file: ./env/embeddings-service.env
+
+  reranker-service:
+    build:
+      context: .
+      dockerfile: add-ai-reranker-service/Dockerfile
+    image: harshpaygude/audito-reranker-service:latest
+    restart: unless-stopped
+    env_file: ./env/reranker-service.env
+
+  llm-service:
+    build:
+      context: .
+      dockerfile: add-ai-llm-service/Dockerfile
+    image: harshpaygude/audito-llm-service:latest
+    restart: unless-stopped
+    env_file: ./env/llm-service.env
+
+  parsing-service:
+    build:
+      context: .
+      dockerfile: add-ai-parsing-service/Dockerfile
+    image: harshpaygude/audito-parsing-service:latest
+    restart: unless-stopped
+    env_file: ./env/parsing-service.env
+    volumes:
+      - debug_logs:/data/debug_logs
+      - storage:/data/storage
+
+  # ===================================================== retrieval ====
+  vectorstore-service:
+    build:
+      context: .
+      dockerfile: add-ai-vectorstore-service/Dockerfile
+    image: harshpaygude/audito-vectorstore-service:latest
+    restart: unless-stopped
+    env_file: ./env/vectorstore-service.env
+    depends_on:
+      - qdrant
+
+  sparseindex-service:
+    build:
+      context: .
+      dockerfile: add-ai-sparseindex-service/Dockerfile
+    image: harshpaygude/audito-sparseindex-service:latest
+    restart: unless-stopped
+    env_file: ./env/sparseindex-service.env
+    volumes:
+      - bm25_cache:/data/bm25_cache
+
+  # ==================================================== data stores ===
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: add_ai
+    ports:
+      - "5432:5432"   # dev convenience (psql/DBeaver); remove for prod
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # dev convenience; NOTE: vectorstore-service.env
+                      # currently points at Qdrant Cloud, not this
+                      # container — see README note on cloud vs local.
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"   # dev convenience; NOTE: backend/worker .env
+                      # currently point at Upstash Redis, not this
+                      # container — see README note on cloud vs local.
+
+volumes:
+  storage:        # uploaded originals — shared between backend (writes) and worker (reads)
+  debug_logs:     # parsing-service's chunk-audit logs
+  bm25_cache:     # sparseindex-service's per-user BM25 pickle cache
+  pg_data:
+  qdrant_data:

@@ -1,0 +1,9 @@
+# Standalone compose file so this repo can be built and tested completely
+# on its own, with no other ADD_AI repo checked out.
+services:
+  tts-service:
+    build: .
+    image: add-ai-tts-service:local
+    ports:
+      - "8009:8009"
+    env_file: .env

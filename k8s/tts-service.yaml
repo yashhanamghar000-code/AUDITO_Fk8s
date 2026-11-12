@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts-service
+  namespace: audito
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts-service
+  template:
+    metadata:
+      labels:
+        app: tts-service
+    spec:
+      containers:
+        - name: tts-service
+          image: harshpaygude/audito-tts-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8009
+              protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts-service
+  namespace: audito
+spec:
+  selector:
+    app: tts-service
+  ports:
+    - protocol: TCP
+      port: 8009
+      targetPort: 8009
+  type: ClusterIP

@@ -1,0 +1,7 @@
+services:
+  llm-service:
+    build: .
+    image: add-ai-llm-service:local
+    ports:
+      - "8003:8003"
+    env_file: .env

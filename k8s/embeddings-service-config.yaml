@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: embeddings-service-config
+  namespace: audito
+data:
+  EMBEDDING_MODEL: "BAAI/bge-small-en-v1.5"

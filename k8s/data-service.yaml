@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: data-service
+  namespace: audito
+
+spec:
+  selector:
+    app: data-service
+
+  ports:
+    - port: 8007
+      targetPort: 8007
+
+  type: ClusterIP

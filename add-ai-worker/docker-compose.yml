@@ -1,0 +1,66 @@
+# Standalone: needs the same shared-storage volume as add-ai-backend
+# (uploads land there) plus every service this worker calls. Build/pull
+# each sibling repo's image first (see README) so these `image:` lines
+# resolve — this file intentionally does NOT `build:` them, per the
+# platform's convention of one Dockerfile per repo.
+services:
+  worker:
+    build: .
+    image: add-ai-worker:local
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - shared_storage:/data/storage
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  parsing-service:
+    image: add-ai-parsing-service:local
+    ports: ["8006:8006"]
+
+  embeddings-service:
+    image: add-ai-embeddings-service:local
+    ports: ["8001:8001"]
+
+  vectorstore-service:
+    image: add-ai-vectorstore-service:local
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    depends_on: [qdrant]
+    ports: ["8004:8004"]
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    ports: ["6333:6333"]
+
+  sparseindex-service:
+    image: add-ai-sparseindex-service:local
+    ports: ["8005:8005"]
+
+  data-service:
+    image: add-ai-data-service:local
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/add_ai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["8007:8007"]
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: add_ai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  shared_storage:

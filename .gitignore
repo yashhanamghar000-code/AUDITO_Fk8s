@@ -1,0 +1,14 @@
+env/
+**/env/
+*.env
+.env*
+certs/
+*.pem
+*.key
+node_modules/
+.output/
+.tanstack/
+venv/
+__pycache__/
+.DS_Store
+*.zip

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-service-config
+  namespace: audito
+data:
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
+  AZURE_LLM_DEPLOYMENT: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+  LLM_TEMPERATURE: "0.1"

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: parsing-service-config
+  namespace: audito
+data:
+  PARSER_MAX_WORKERS: "2"
+  DEBUG_LOGS_DIR: "/data/debug_logs"
