@@ -1,12 +1,15 @@
 import os
-os.environ.setdefault("AZURE_LLM_DEPLOYMENT", "dummy")
-os.environ.setdefault("MY_API_KEY", "dummy")
-os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://dummy.openai.azure.com/")
+
+# The service builds its provider client at import time.
+os.environ.setdefault("LLM_PROVIDER", "anthropic")
+os.environ.setdefault("ANTHROPIC_API_KEY", "dummy-not-a-real-key")
+os.environ.setdefault("ANTHROPIC_MODEL", "claude-opus-5-5")
 
 from fastapi.testclient import TestClient
-from app.main import app
+import app.main as main
 
-client = TestClient(app)
+client = TestClient(main.app)
+
 
 def test_health():
     r = client.get("/health")

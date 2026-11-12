@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from fastapi import APIRouter, Depends, Form, HTTPException
 
 from app.api.dependencies import get_container, get_current_user
+from app.clients.llm_client import LlmServiceError
+from app.config.settings import settings
 from app.container import Container
 
 
@@ -133,11 +135,20 @@ async def secure_chat(
         # RUN RAG WORKFLOW
         # =========================================================
 
+        # Earlier turns of THIS conversation (ownership-checked by user_id +
+        # session_id in the data service) so follow-up questions resolve.
+        prior = container.history_service.get_chat_history(current_user.id, session_id)
+        chat_history = [
+            ("user" if m.get("sender") == "user" else "assistant", m.get("text", ""))
+            for m in prior
+        ][-settings.chat_history_messages:]
+
         answer = container.chat_workflow_service.run(
             query=query,
             user_id=user_id,
             session_id=session_id,
             selected_file_ids=selected_file_ids,
+            chat_history=chat_history,
         )
 
         # =========================================================
@@ -158,10 +169,17 @@ async def secure_chat(
     except HTTPException:
         raise
 
-    except Exception as e:
+    except LlmServiceError as e:
+        # Already a user-safe message (rate limit, timeout, overload, refusal...).
+        print(f"[Chat] LLM service error category={e.category} status={e.status_code}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+    except Exception:
+        # Full detail goes to the server log only; the client gets a generic
+        # message so internal hostnames / exception text are never exposed.
         traceback.print_exc()
 
         raise HTTPException(
             status_code=500,
-            detail=f"LLM Orchestration Error: {str(e)}",
+            detail="Something went wrong while generating the answer. Please try again.",
         )
