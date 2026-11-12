@@ -41,7 +41,7 @@ Then:
   directly with `curl` while the rest of the stack is up.
 
 Fill in real secrets first — copy each `env/*.env` file's placeholders
-(`MY_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `JWT_SECRET_KEY`) with real
+(`ANTHROPIC_API_KEY`, `JWT_SECRET_KEY`) with real
 values before `docker compose up`.
 
 ## Local development across multiple repos at once
