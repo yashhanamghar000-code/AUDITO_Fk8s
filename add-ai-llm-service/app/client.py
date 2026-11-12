@@ -1,13 +1,9 @@
-"""LLM provider clients for the AUDITO llm-service.
+"""Anthropic Claude client for the AUDITO llm-service.
 
-Two interchangeable providers sit behind the same `complete`/`complete_ex`
-interface, selected at start-up by LLM_PROVIDER (see app/main.py):
+AUDITO uses Claude exclusively (official `anthropic` SDK).
 
-* GeminiLlmClient     - the original implementation (kept as the rollback path)
-* AnthropicLlmClient  - Anthropic Claude through the official `anthropic` SDK
-
-Security: API keys are only ever read from the environment by the caller and
-passed to the SDK. They are never logged, returned in responses or included in
+Security: the API key is only ever read from the environment by the caller and
+passed to the SDK. It is never logged, returned in responses or included in
 error messages. Prompts and completions are never logged - only metadata
 (model, token counts, latency, stop reason, request id).
 """
@@ -15,6 +11,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+import anthropic
 
 from add_ai_core.interfaces.llm_client import ILLMClient
 
@@ -49,49 +47,6 @@ class LlmResult:
 
 
 # --------------------------------------------------------------------------- #
-# Gemini (original implementation, unchanged behaviour)
-# --------------------------------------------------------------------------- #
-class GeminiLlmClient(ILLMClient):
-
-    def __init__(self, model: str, api_key: str, base_url: str, temperature: float = 0.1):
-        # Imported lazily so an Anthropic-only deployment does not need the
-        # LangChain/OpenAI stack to be importable at start-up.
-        from langchain_openai import ChatOpenAI
-
-        self._model = model
-        self._llm = ChatOpenAI(model=model, api_key=api_key, base_url=base_url, temperature=temperature)
-
-    def complete(self, messages: List[Tuple[str, str]]) -> str:
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-
-        lc_messages = []
-        for role, content in messages:
-            if role == "system":
-                lc_messages.append(SystemMessage(content=content))
-            elif role == "assistant":
-                lc_messages.append(AIMessage(content=content))
-            else:
-                lc_messages.append(HumanMessage(content=content))
-        return self._llm.invoke(lc_messages).content
-
-    def complete_ex(
-        self,
-        messages: List[Tuple[str, str]],
-        max_tokens: Optional[int] = None,
-        effort: Optional[str] = None,
-    ) -> LlmResult:
-        started = time.monotonic()
-        try:
-            text = self.complete(messages)
-        except Exception as exc:  # provider SDK errors differ; keep the message generic
-            logger.error("gemini request failed: %s", type(exc).__name__)
-            raise LlmProviderError(502, "provider_error", "The language model provider returned an error.") from exc
-        latency = int((time.monotonic() - started) * 1000)
-        logger.info("llm provider=gemini model=%s latency_ms=%d", self._model, latency)
-        return LlmResult(text=text, provider="gemini", model=self._model, latency_ms=latency)
-
-
-# --------------------------------------------------------------------------- #
 # Anthropic Claude
 # --------------------------------------------------------------------------- #
 class AnthropicLlmClient(ILLMClient):
@@ -115,8 +70,6 @@ class AnthropicLlmClient(ILLMClient):
         max_retries: int = 2,
         refusal_fallback: bool = True,
     ):
-        import anthropic  # imported lazily: the Gemini-only path must not require it
-
         self._anthropic = anthropic
         self._model = model
         self._max_tokens = max_tokens

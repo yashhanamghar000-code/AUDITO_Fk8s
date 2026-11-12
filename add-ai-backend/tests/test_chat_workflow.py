@@ -9,7 +9,6 @@ from app.clients.llm_client import LlmServiceError
 from app.prompts.audito_system_prompt import (
     AUDITO_SYSTEM_PROMPT,
     FOLLOWUP_DELIMITER,
-    LEGACY_SYSTEM_PROMPT,
     SOURCES_DELIMITER,
     get_system_prompt,
 )
@@ -63,9 +62,9 @@ class LegacyLLM:
         return '["q1"]' if len(messages) == 1 else "Answer."
 
 
-def build(llm, docs, prompt_version="audito"):
+def build(llm, docs):
     svc = ChatWorkflowService(llm, FakeRetrieval(docs), top_k_per_query=15, final_docs_per_query=6,
-                              max_total_context_docs=18, prompt_version=prompt_version)
+                              max_total_context_docs=18)
     return svc
 
 
@@ -94,13 +93,6 @@ def test_system_prompt_is_audito_and_contains_owner_text_verbatim():
     assert "## C. REQUIRED ANSWER STRUCTURE" in system[1] and "## G. USER EXPERIENCE" in system[1]
     assert SOURCES_DELIMITER in system[1] and FOLLOWUP_DELIMITER in system[1]
     assert "untrusted document data" in system[1]          # prompt-injection rule
-
-
-def test_legacy_prompt_selectable_for_rollback():
-    assert get_system_prompt("legacy") == LEGACY_SYSTEM_PROMPT
-    llm = FakeLLM()
-    build(llm, [chunk("x")], prompt_version="legacy").run("q", "7", "s1")
-    assert generation_call(llm)["messages"][0][1] == LEGACY_SYSTEM_PROMPT
 
 
 # ------------------------------------------------------------------ output parsing / citations

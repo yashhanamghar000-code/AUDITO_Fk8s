@@ -74,7 +74,6 @@ class SharedSingletons:
             top_k_per_query=cfg.top_k_per_query,
             final_docs_per_query=cfg.final_docs_per_query,
             max_total_context_docs=cfg.max_total_context_docs,
-            prompt_version=cfg.audito_prompt,
         )
         self.summarization_service = SummarizationService(
             llm_client=self.llm_client,

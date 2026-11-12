@@ -2,7 +2,6 @@
 import os
 from types import SimpleNamespace
 
-os.environ.setdefault("LLM_PROVIDER", "anthropic")
 os.environ.setdefault("ANTHROPIC_API_KEY", "dummy-not-a-real-key")
 
 import anthropic
@@ -198,12 +197,17 @@ def test_http_rate_limit_sets_retry_after_header(monkeypatch):
     assert r.status_code == 429 and r.headers["retry-after"] == "7"
 
 
-def test_provider_switch(monkeypatch):
-    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+def test_build_client_reads_environment(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
     monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setenv("ANTHROPIC_EFFORT", "high")
+    monkeypatch.setenv("ANTHROPIC_MAX_TOKENS", "4000")
     c = main.build_client()
-    assert isinstance(c, AnthropicLlmClient) and c._model == "claude-sonnet-5-5"
-    monkeypatch.setenv("LLM_PROVIDER", "nonsense")
-    with pytest.raises(RuntimeError):
+    assert isinstance(c, AnthropicLlmClient)
+    assert (c._model, c._effort, c._max_tokens) == ("claude-sonnet-5-5", "high", 4000)
+
+
+def test_missing_api_key_fails_fast(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(KeyError):
         main.build_client()

@@ -1,7 +1,7 @@
 # Local test overrides ONLY (never used in production):
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d <services>
-# Exposes the backend on a local port and adds a Gemini LLM container so the two
-# providers can be compared on identical retrieval. env/ is gitignored.
+# Exposes the backend on a local port and adds a deliberately broken LLM container
+# (invalid key) to test failure handling. env/ is gitignored.
 services:
   backend:
     ports:
@@ -9,32 +9,10 @@ services:
   data-service:
     ports:
       - "127.0.0.1:18007:8007"
-  llm-service-gemini:
-    build:
-      context: .
-      dockerfile: add-ai-llm-service/Dockerfile
-    image: harshpaygude/audito-llm-service:latest
-    env_file: ./env/llm-gemini.env
-    restart: unless-stopped
-  backend-gemini:
-    # Same backend image and data stores, but its LLM calls go to the Gemini container,
-    # so both providers answer from identical indexed documents.
-    image: harshpaygude/audito-backend:latest
-    env_file: ./env/backend.env
-    environment:
-      LLM_SERVICE_URL: http://llm-service-gemini:8003
-    volumes:
-      - storage:/data/storage
-    ports:
-      - "127.0.0.1:18001:8000"
-    depends_on:
-      - llm-service-gemini
-      - data-service
   llm-service-bad:
     # Deliberately invalid key: used to verify graceful failure handling (never used in production).
     image: harshpaygude/audito-llm-service:latest
     environment:
-      LLM_PROVIDER: anthropic
       ANTHROPIC_API_KEY: sk-ant-this-key-is-deliberately-invalid-0000000000
       ANTHROPIC_MODEL: claude-opus-5-5
   backend-bad:

@@ -14,7 +14,6 @@ from app.prompts.audito_system_prompt import (
     FOLLOWUP_DELIMITER,
     SOURCES_DELIMITER,
     get_system_prompt,
-    uses_source_tail,
 )
 from app.services.retrieval_service import RetrievalService
 
@@ -49,14 +48,12 @@ class ChatWorkflowService:
         top_k_per_query: int,
         final_docs_per_query: int,
         max_total_context_docs: int,
-        prompt_version: str = "audito",
     ):
         self._llm = llm_client
         self._retrieval = retrieval_service
         self._top_k_per_query = top_k_per_query
         self._final_docs_per_query = final_docs_per_query
         self._max_total_context_docs = max_total_context_docs
-        self._prompt_version = prompt_version
         # Per-request tuning (max_tokens / effort) is only passed to LLM
         # clients whose `complete` accepts it, so older/fake clients keep working.
         try:
@@ -221,8 +218,8 @@ class ChatWorkflowService:
         answer_text, used_sources, follow_up_questions = self._parse_model_output(raw_content)
 
         if used_sources is None:
-            # The model did not report which passages it used (e.g. the legacy
-            # prompt): fall back to the top-ranked passages, as before.
+            # The model did not report which passages it used (e.g. the answer was
+            # cut off at the token limit before the tail): fall back to the top-ranked passages.
             citation_docs, max_citations = docs, 3
         else:
             # Only passages the model says it relied on become citations; every
@@ -413,7 +410,7 @@ class ChatWorkflowService:
         }
 
     def _build_system_prompt(self) -> str:
-        return get_system_prompt(self._prompt_version)
+        return get_system_prompt()
 
     @staticmethod
     def _split_answer_and_followups(raw_content: str):

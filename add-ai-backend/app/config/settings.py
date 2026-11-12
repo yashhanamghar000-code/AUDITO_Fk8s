@@ -38,8 +38,6 @@ class Settings:
     top_k_per_query: int = field(default_factory=lambda: _env_int("TOP_K_PER_QUERY", 15))
     final_docs_per_query: int = field(default_factory=lambda: _env_int("FINAL_DOCS_PER_QUERY", 6))
     max_total_context_docs: int = field(default_factory=lambda: _env_int("MAX_TOTAL_CONTEXT_DOCS", 18))
-    # AUDITO_PROMPT=audito (default, the AUDITO system prompt) | legacy (original Gemini-era prompt, for rollback)
-    audito_prompt: str = field(default_factory=lambda: _env("AUDITO_PROMPT", "audito") or "audito")
     # How many earlier messages of the conversation are sent to the model so follow-ups resolve.
     chat_history_messages: int = field(default_factory=lambda: _env_int("CHAT_HISTORY_MESSAGES", 6))
 

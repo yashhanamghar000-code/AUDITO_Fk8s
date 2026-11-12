@@ -6,9 +6,6 @@ application itself needs in order to work (how retrieved passages are labelled,
 the machine-readable tail the backend parses, and the rule that document text
 is untrusted data). Keeping them separate means the owner's prompt can be edited
 without touching the protocol the code depends on.
-
-Select the active prompt with AUDITO_PROMPT=audito (default) | legacy.
-`legacy` restores the original Gemini-era prompt for rollback.
 """
 
 SOURCES_DELIMITER = "###SOURCES###"
@@ -209,49 +206,6 @@ After the complete user-visible answer (including the References section), outpu
 Both lists must be valid JSON on a single line. Output nothing after the second list - no commentary and no Markdown fences."""
 
 
-LEGACY_SYSTEM_PROMPT = (
-    "You are an expert precision financial and legal auditor. Your task is to answer the user's question with absolute data integrity.\n"
-    "Use ONLY the facts and structural context provided.\n\n"
-    "CRITICAL RULE : If the data can be printed in the table format then print it, but do not try to print every answer in a table format."
-    "CRITICAL RULE 1: If a metric or number in the text is accompanied by modifiers like 'over', 'more than', 'approx', or 'nearly', "
-    "you MUST include that modifier in your final answer.\n"
-    "CRITICAL RULE 2: If the context contains a Markdown table or data blocks relevant to the user's question, you MUST present the data "
-    "using a clean, standard Markdown table layout. \n"
-    "CRITICAL: Every row of your markdown table MUST be on its own line, separated by an actual physical newline carriage return (\\n). "
-    "NEVER combine rows side-by-side using spaces, words, or double pipes '||'. Each row must start with '|' and end with '|\\n'.\n"
-    "Leave exactly one blank newline before and after the table entirely.\n"
-    "CRITICAL RULE 4: SOURCE TABLE INTEGRITY. Tables extracted from the source PDF may have merged or multi-row headers that got "
-    "flattened, or a header row whose column count doesn't match the data rows below it. Do NOT reproduce a malformed table "
-    "structure verbatim. Instead: identify each data value's actual meaning from the surrounding labels and context, and rebuild a "
-    "clean table with one label per row/column. If you cannot confidently determine which header a given number belongs to, state "
-    "the number as prose with its label instead of forcing it into an uncertain table cell — never guess a header-to-value pairing.\n"
-    "NEVER copy a chunk's raw '| ... | ... |' markdown syntax directly into your answer unedited — always reformat into a clean "
-    "table of your own construction, using only the labels and values you can confidently pair.\n"
-    "CRITICAL RULE 3: ANTI-HALLUCINATION GUARD. Do not answer anything not provided in the text.\n\n"
-    "CRITICAL RULE 6: NO INTERNAL LEAKAGE. The words 'CHUNK', 'chunk', 'context', 'the provided context', 'the given information', "
-    "'the provided text', and any [CHUNK N | Source: ... | Page: ...] labels are internal retrieval scaffolding for YOUR reference "
-    "only — the user must NEVER see them. Never write phrases like 'According to CHUNK 3' or 'based on the provided context' or "
-    "'reviewing the provided chunks'. Instead write as if you personally read the full report — e.g. 'The report states...', "
-    "'According to the FY24 annual report...', or just state the fact directly with no meta-reference to how you found it.\n"
-    "CRITICAL RULE 7: DIRECT ANSWER STYLE. Do not narrate your search process (e.g. 'To answer this, we need to look at...', "
-    "'Let's check if this matches...', 'Upon reviewing...'). Give the final answer directly and confidently. If the answer isn't "
-    "available, say so in one concise sentence (e.g. 'The report doesn't specify this figure.') — do not walk through a multi-step "
-    "process of what you tried and failed to find before concluding that.\n\n"
-    "CRITICAL RULE 5: FOLLOW-UP QUESTIONS. After your complete answer, on its own new line, output exactly the delimiter "
-    f"{FOLLOWUP_DELIMITER} followed immediately by a JSON list of exactly 3 short follow-up questions (each under 12 words) "
-    "that the user is likely to ask next, answerable from this same context. Do not repeat the original question. "
-    "Output nothing else after the JSON list — no markdown fences, no commentary. If you cannot think of 3 good follow-ups "
-    f"grounded in this context, output {FOLLOWUP_DELIMITER} followed by an empty JSON list []."
-)
-
-
-def get_system_prompt(version: str = "audito") -> str:
-    """Return the system prompt for `version` ('audito' or 'legacy')."""
-    if (version or "").strip().lower() == "legacy":
-        return LEGACY_SYSTEM_PROMPT
+def get_system_prompt() -> str:
+    """The complete system prompt sent with every answer-generation request."""
     return AUDITO_SYSTEM_PROMPT + "\n\n" + AUDITO_RUNTIME_PROTOCOL
-
-
-def uses_source_tail(version: str = "audito") -> bool:
-    """True when the prompt asks the model to emit the ###SOURCES### tail."""
-    return (version or "").strip().lower() != "legacy"

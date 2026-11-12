@@ -1,9 +1,9 @@
-"""End-to-end RAG evaluation: Claude backend vs Gemini backend on identical documents.
+"""End-to-end RAG evaluation of the AUDITO backend (Claude) on a synthetic corpus.
 
 Prerequisites (local stack, see docker-compose.local.yml):
-  backend (Claude) on :18000, backend-gemini on :18001, worker + services up.
+  backend on :18000, worker + services up, corpus generated with generate_corpus.py.
 Usage:
-  python run_eval.py --corpus C:/audito_eval/corpus --out C:/audito_eval/results [--only Q01,Q06] [--backends claude,gemini]
+  python run_eval.py --corpus C:/audito_eval/corpus --out C:/audito_eval/results [--only Q01,Q06]
 
 Secrets: the Anthropic key is read from ANTHROPIC_API_KEY or the file named by
 ANTHROPIC_KEY_FILE, only to run the (optional) unsupported-claim judge. It is never printed.
@@ -19,8 +19,8 @@ import uuid
 
 import httpx
 
-BACKENDS = {"claude": "http://127.0.0.1:18000", "gemini": "http://127.0.0.1:18001"}
-LLM_CONTAINER = {"claude": "audito_local-llm-service-1", "gemini": "audito_local-llm-service-gemini-1"}
+BACKENDS = {"claude": "http://127.0.0.1:18000"}
+LLM_CONTAINER = {"claude": "audito_local-llm-service-1"}
 # USD per million tokens (claude-opus-5-5): input, output, cache read, cache write (5m)
 OPUS_55 = {"in": 4.00, "out": 20.00, "cache_read": 0.20, "cache_write": 5.00}
 
@@ -30,7 +30,7 @@ NOT_FOUND = re.compile(
     r"|(is|are|was|were) not (given|listed|stated)|could not find|couldn't find|doesn'?t (say|specify|include)",
     re.I,
 )
-REF = re.compile(r"([\w\-. ]+?\.pdf)[\s,;:(]+(?:p\.?|pp\.?|page)\s*(\d+)", re.I)
+REF = re.compile(r"([\w\-.]+\.pdf)[\s,;:()\]]*(?:,\s*)?(?:p\.?|pp\.?|page)\s*(\d+)", re.I)
 
 
 def log(*a):
@@ -182,7 +182,7 @@ def main():
     ap.add_argument("--corpus", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--only", default="")
-    ap.add_argument("--backends", default="claude,gemini")
+    ap.add_argument("--backends", default="claude")
     ap.add_argument("--no-judge", action="store_true")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -248,7 +248,7 @@ def main():
                 js = r.json()
             except Exception:
                 js = {"detail": r.text[:200]}
-            usage = docker_log_usage(LLM_CONTAINER[be], t_start - 1) if be == "claude" else []
+            usage = docker_log_usage(LLM_CONTAINER[be], t_start - 1) if be in LLM_CONTAINER else []
             sc = score(q, js, r.status_code, pages)
             row = dict(backend=be, id=q["id"], scenario=q["scenario"], query=q["query"], latency_s=round(dt, 1),
                        llm_calls=len(usage), input_tokens=sum(u["input"] for u in usage), output_tokens=sum(u["output"] for u in usage),
