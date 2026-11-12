@@ -59,14 +59,14 @@ export const chatService = {
   // sidebar to restrict the answer to just those files (e.g. Sam picking
   // 2 of her 5 uploaded PDFs). Omit or pass an empty array to search across
   // everything she's uploaded, same as before.
-  send: (query: string, sessionId: string, fileIds?: string[]) => {
+  send: (query: string, sessionId: string, fileIds?: string[], signal?: AbortSignal) => {
     const form = new FormData();
     form.append("query", query);
     form.append("session_id", sessionId);
     if (fileIds && fileIds.length > 0) {
       form.append("file_ids", fileIds.join(","));
     }
-    return api.post<ChatResponse>("/api/chat", form);
+    return api.post<ChatResponse>("/api/chat", form, { signal });
   },
 
   clearSession: (sessionId: string) =>

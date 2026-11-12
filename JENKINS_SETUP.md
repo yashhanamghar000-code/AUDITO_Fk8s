@@ -1,6 +1,6 @@
 # Jenkins deployment setup
 
-This pipeline builds and pushes the Mistral LLM service, deploys it to
+This pipeline builds and pushes the Anthropic Claude LLM service, deploys it to
 Kubernetes, and configures the ingress for `auditoai.online`.
 
 ## 1. Jenkins agent requirements
@@ -16,7 +16,7 @@ In **Manage Jenkins > Credentials > System > Global credentials**, add:
 |---|---|---|
 | `dockerhub-credentials` | Username with password | Docker Hub username and access token |
 | `kubeconfig` | Secret file | Kubeconfig for the target cluster |
-| `mistral-api-key` | Secret text | Mistral API key |
+| `anthropic-api-key` | Secret text | Anthropic API key |
 | `audito-tls-crt` | Secret file | TLS certificate for `auditoai.online` |
 | `audito-tls-key` | Secret file | Matching TLS private key |
 

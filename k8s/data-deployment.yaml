@@ -21,7 +21,7 @@ spec:
       containers:
         - name: data-service
 
-          image: yashhanamghar/audito-data-service:latest
+          image: harshpaygude/audito-data-service:latest
 
           imagePullPolicy: Always
 
@@ -30,4 +30,4 @@ spec:
 
           envFrom:
             - secretRef:
-                name: data-env
+                name: data-service-secret

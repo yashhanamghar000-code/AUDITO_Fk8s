@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: embeddings-service
-          image: yashhanamghar/audito-embeddings-service:latest
-          imagePullPolicy: Never
+          image: harshpaygude/audito-embeddings-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8001
 

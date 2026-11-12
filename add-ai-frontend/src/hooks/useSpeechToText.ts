@@ -1,86 +1,100 @@
-/**
- * NEW FILE — src/hooks/useSpeechToText.ts
- *
- * Voice input for the chat box, via the browser's built-in Web Speech
- * API (SpeechRecognition). No backend call, no new microservice, no
- * audio ever leaves the browser — the browser itself does the
- * transcription and hands back text. This is what powers the mic button
- * in ChatInput.tsx.
- *
- * Browser support: Chrome/Edge (desktop + Android) support this natively.
- * Firefox and Safari currently don't implement SpeechRecognition — the
- * hook degrades gracefully (`isSupported: false`), and ChatInput hides
- * the mic button entirely in that case rather than showing a button that
- * silently does nothing.
- */
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// Minimal shape of the parts of the Web Speech API this hook uses — not
+// shipped in standard TS lib.dom yet, and prefixed on some browsers.
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+}
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === "undefined") return null;
-  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+  const w = window as any;
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export const isSpeechRecognitionSupported = () => getSpeechRecognitionCtor() !== null;
-
-interface UseSpeechToTextOptions {
-  /** Called once per completed phrase, e.g. after a pause in speech. */
-  onFinalResult?: (transcript: string) => void;
+export interface UseSpeechToTextOptions {
   lang?: string;
+  // Called with the live (interim + final) transcript as the person speaks.
+  onTranscript?: (text: string, isFinal: boolean) => void;
 }
 
-export function useSpeechToText({ onFinalResult, lang = "en-US" }: UseSpeechToTextOptions = {}) {
+export interface UseSpeechToTextResult {
+  isSupported: boolean;
+  isListening: boolean;
+  start: () => void;
+  stop: () => void;
+  toggle: () => void;
+}
+
+/**
+ * Provider-agnostic speech-to-text. Today this wraps the browser's
+ * built-in SpeechRecognition (free, zero backend calls, but Chrome/Edge
+ * only). If a backend STT service is added later (e.g. mirroring
+ * add-ai-tts-service), only this hook's internals need to change —
+ * ChatInput consumes { isSupported, isListening, start, stop, toggle }
+ * regardless of what implements them.
+ */
+export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeechToTextResult {
+  const { lang = "en-US", onTranscript } = options;
   const [isListening, setIsListening] = useState(false);
-  const [isSupported] = useState(isSpeechRecognitionSupported);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const onFinalResultRef = useRef(onFinalResult);
-  onFinalResultRef.current = onFinalResult;
+  const Ctor = getSpeechRecognitionCtor();
+  const isSupported = Ctor !== null;
 
   useEffect(() => {
-    const Ctor = getSpeechRecognitionCtor();
-    if (!Ctor) return;
-
-    const recognition = new Ctor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = lang;
-
-    recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          const transcript = result[0].transcript.trim();
-          if (transcript) onFinalResultRef.current?.(transcript);
-        }
-      }
-    };
-
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-
-    recognitionRef.current = recognition;
-
     return () => {
-      recognition.onresult = null;
-      recognition.onerror = null;
-      recognition.onend = null;
-      recognition.abort();
-      recognitionRef.current = null;
+      recognitionRef.current?.stop();
     };
-  }, [lang]);
+  }, []);
 
   const start = useCallback(() => {
-    if (!recognitionRef.current || isListening) return;
-    try {
-      recognitionRef.current.start();
-      setIsListening(true);
-    } catch {
-      // start() throws if called while already running (rapid double
-      // click) — safe to ignore, state already reflects "listening".
-    }
-  }, [isListening]);
+    if (!Ctor || recognitionRef.current) return;
+
+    const recognition = new Ctor();
+    recognition.lang = lang;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (e) => {
+      let text = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const result = e.results[i];
+        text += result[0].transcript;
+        onTranscript?.(text, result.isFinal);
+      }
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [Ctor, lang, onTranscript]);
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop();
+    recognitionRef.current = null;
     setIsListening(false);
   }, []);
 

@@ -1,12 +1,14 @@
 import os
-os.environ.setdefault("MISTRAL_API_KEY", "dummy")
-os.environ.setdefault("MISTRAL_ENDPOINT", "https://api.mistral.ai/v1")
-os.environ.setdefault("MISTRAL_MODEL", "mistral-large-latest")
+
+# The service builds its Claude client at import time.
+os.environ.setdefault("ANTHROPIC_API_KEY", "dummy-not-a-real-key")
+os.environ.setdefault("ANTHROPIC_MODEL", "claude-opus-5-5")
 
 from fastapi.testclient import TestClient
-from app.main import app
+import app.main as main
 
-client = TestClient(app)
+client = TestClient(main.app)
+
 
 def test_health():
     r = client.get("/health")

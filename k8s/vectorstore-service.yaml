@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: vectorstore-service
-          image: yashhanamghar/audito-vectorstore-service:latest
-          imagePullPolicy: Never
+          image: harshpaygude/audito-vectorstore-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8004
           envFrom:

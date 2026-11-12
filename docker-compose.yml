@@ -38,6 +38,7 @@ services:
   # plugin system and active/passive upstream health checks on top.
   api-gateway:
     image: kong:3.7
+    restart: unless-stopped
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
@@ -49,7 +50,7 @@ services:
     volumes:
       - ./add-ai-gateway/kong.yml:/kong/declarative/kong.yml:ro
     ports:
-      - "80:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
@@ -60,16 +61,22 @@ services:
       - backend
 
   frontend:
-    build: ./add-ai-frontend
+    build:
+      context: .
+      dockerfile: add-ai-frontend/Dockerfile
     image: harshpaygude/audito-frontend:latest
+    restart: unless-stopped
     # No published port: only reachable from api-gateway on the
     # internal compose network (http://frontend:3000).
     depends_on:
       - backend
 
   backend:
-    build: ./add-ai-backend
+    build:
+      context: .
+      dockerfile: add-ai-backend/Dockerfile
     image: harshpaygude/audito-backend:latest
+    restart: unless-stopped
     env_file: ./env/backend.env
     volumes:
       - storage:/data/storage
@@ -84,8 +91,12 @@ services:
       - redis
 
   worker:
-    build: ./add-ai-worker
+    build:
+      context: .
+      dockerfile: add-ai-worker/Dockerfile
     image: harshpaygude/audito-worker:latest
+    restart: unless-stopped
+    command: celery -A app.celery_app worker -Q audito-production --loglevel=info
     env_file: ./env/worker.env
     volumes:
       - storage:/data/storage
@@ -101,15 +112,21 @@ services:
 
   # ======================================================= identity ===
   auth-service:
-    build: ./add-ai-auth-service
+    build:
+      context: .
+      dockerfile: add-ai-auth-service/Dockerfile
     image: harshpaygude/audito-auth-service:latest
+    restart: unless-stopped
     env_file: ./env/auth-service.env
     depends_on:
       - data-service
 
   data-service:
-    build: ./add-ai-data-service
+    build:
+      context: .
+      dockerfile: add-ai-data-service/Dockerfile
     image: harshpaygude/audito-data-service:latest
+    restart: unless-stopped
     env_file: ./env/data-service.env
     depends_on:
       postgres:
@@ -117,38 +134,57 @@ services:
 
   # ==================================================== ML adapters ===
   embeddings-service:
-    build: ./add-ai-embeddings-service
+    build:
+      context: .
+      dockerfile: add-ai-embeddings-service/Dockerfile
     image: harshpaygude/audito-embeddings-service:latest
+    restart: unless-stopped
     env_file: ./env/embeddings-service.env
 
   reranker-service:
-    build: ./add-ai-reranker-service
+    build:
+      context: .
+      dockerfile: add-ai-reranker-service/Dockerfile
     image: harshpaygude/audito-reranker-service:latest
+    restart: unless-stopped
     env_file: ./env/reranker-service.env
 
   llm-service:
-    build: ./add-ai-llm-service
+    build:
+      context: .
+      dockerfile: add-ai-llm-service/Dockerfile
     image: harshpaygude/audito-llm-service:latest
+    restart: unless-stopped
     env_file: ./env/llm-service.env
 
   parsing-service:
-    build: ./add-ai-parsing-service
+    build:
+      context: .
+      dockerfile: add-ai-parsing-service/Dockerfile
     image: harshpaygude/audito-parsing-service:latest
+    restart: unless-stopped
     env_file: ./env/parsing-service.env
     volumes:
       - debug_logs:/data/debug_logs
+      - storage:/data/storage
 
   # ===================================================== retrieval ====
   vectorstore-service:
-    build: ./add-ai-vectorstore-service
+    build:
+      context: .
+      dockerfile: add-ai-vectorstore-service/Dockerfile
     image: harshpaygude/audito-vectorstore-service:latest
+    restart: unless-stopped
     env_file: ./env/vectorstore-service.env
     depends_on:
       - qdrant
 
   sparseindex-service:
-    build: ./add-ai-sparseindex-service
+    build:
+      context: .
+      dockerfile: add-ai-sparseindex-service/Dockerfile
     image: harshpaygude/audito-sparseindex-service:latest
+    restart: unless-stopped
     env_file: ./env/sparseindex-service.env
     volumes:
       - bm25_cache:/data/bm25_cache
@@ -156,6 +192,7 @@ services:
   # ==================================================== data stores ===
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -172,6 +209,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:v1.11.3
+    restart: unless-stopped
     ports:
       - "6333:6333"   # dev convenience; NOTE: vectorstore-service.env
                       # currently points at Qdrant Cloud, not this
@@ -181,6 +219,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"   # dev convenience; NOTE: backend/worker .env
                       # currently point at Upstash Redis, not this

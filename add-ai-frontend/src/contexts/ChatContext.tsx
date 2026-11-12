@@ -1,4 +1,3 @@
-import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import {
   createContext,
   useCallback,
@@ -36,9 +35,6 @@ interface ChatContextValue {
   stopGeneration: () => void;
   regenerate: (messageId: string) => Promise<void>;
   reactMessage: (messageId: string, liked: boolean | null) => void;
-  speakingMessageId: string | null;
-  toggleSpeak: (messageId: string, text: string) => void;
-  stopSpeaking: () => void;
 
   uploadDocument: (file: File) => Promise<void>;
   removeDocument: (id: string) => void;
@@ -104,6 +100,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<UploadedDoc[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const stopRef = useRef(false);
+  // Holds the controller for whichever chatService.send() call is
+  // currently in flight, so stopGeneration() can actually cancel the
+  // network request — not just the client-side typing-reveal animation
+  // that happens after the backend has already answered.
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Re-hydrate whenever the logged-in user changes (login, logout, or
   // switching accounts in the same tab).
@@ -338,6 +339,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages: [...c.messages, { id: assistantId, role: "assistant", content: "", createdAt: Date.now() }],
       }));
 
+      // Flips the send button to Stop the instant the request goes out —
+      // not after it comes back — since a RAG answer can take several
+      // seconds to generate and the button was previously dead the whole
+      // time the backend was working.
+      setIsStreaming(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       try {
         // Only files currently checked in the sidebar scope this answer —
         // e.g. Sam picking 2 of her 5 uploaded PDFs before asking. If she's
@@ -346,7 +355,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const fileIds = documents
           .filter((d) => d.selected && d.status === "indexed")
           .map((d) => d.id);
-        const res = await chatService.send(text, convId, fileIds);
+        const res = await chatService.send(text, convId, fileIds, controller.signal);
         await revealAssistantText(
           convId,
           assistantId,
@@ -355,18 +364,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           res.data.citations ?? [],
         );
       } catch (err: any) {
+        if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") {
+          // User hit Stop before the backend responded — drop the empty
+          // placeholder bubble instead of leaving a blank assistant message.
+          updateConversation(convId, (c) => ({
+            ...c,
+            messages: c.messages.filter((m) => m.id !== assistantId),
+          }));
+          setIsStreaming(false);
+          return;
+        }
         const detail = err?.response?.data?.detail ?? "Something went wrong reaching the backend.";
         updateConversation(convId, (c) => ({
           ...c,
           messages: c.messages.map((m) => (m.id === assistantId ? { ...m, content: `⚠️ ${detail}` } : m)),
         }));
         toast.error(detail);
+        setIsStreaming(false);
+      } finally {
+        if (abortControllerRef.current === controller) abortControllerRef.current = null;
       }
     },
     [activeId, createConversation, documents, revealAssistantText, updateConversation, user],
   );
 
   const stopGeneration = useCallback(() => {
+    // Two cases, handled together:
+    // 1. Backend hasn't responded yet — abort the actual HTTP request.
+    // 2. Backend already responded and the client-side typing reveal is
+    //    running — snap it straight to the full text (existing behavior).
+    abortControllerRef.current?.abort();
     stopRef.current = true;
   }, []);
 
@@ -387,11 +414,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages: [...c.messages, { id: assistantId, role: "assistant", content: "", createdAt: Date.now() }],
       }));
 
+      setIsStreaming(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       try {
         const fileIds = documents
           .filter((d) => d.selected && d.status === "indexed")
           .map((d) => d.id);
-        const res = await chatService.send(prompt, activeId, fileIds);
+        const res = await chatService.send(prompt, activeId, fileIds, controller.signal);
         await revealAssistantText(
           activeId,
           assistantId,
@@ -400,7 +431,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           res.data.citations ?? [],
         );
       } catch (err: any) {
+        if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") {
+          updateConversation(activeId, (c) => ({
+            ...c,
+            messages: c.messages.filter((m) => m.id !== assistantId),
+          }));
+          setIsStreaming(false);
+          return;
+        }
         toast.error(err?.response?.data?.detail ?? "Regeneration failed.");
+        setIsStreaming(false);
+      } finally {
+        if (abortControllerRef.current === controller) abortControllerRef.current = null;
       }
     },
     [activeId, conversations, documents, revealAssistantText, updateConversation, user],
@@ -475,9 +517,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }, 1200);
 
-        const { speakingId, toggle: toggleSpeak, stop: stopSpeaking } = useTextToSpeech();
-
-  return () => {
+      return () => {
         cancelled = true;
         clearInterval(interval);
       };
@@ -575,9 +615,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     stopGeneration,
     regenerate,
     reactMessage,
-    speakingMessageId: speakingId,
-    toggleSpeak,
-    stopSpeaking,
     uploadDocument,
     removeDocument,
     toggleDocumentSelection,

@@ -19,4 +19,5 @@ def enqueue_ingestion(file_path: str, file_name: str, user_id: str, session_id: 
     return celery_client.send_task(
         "app.tasks.process_document_task",
         args=[file_path, file_name, user_id, session_id, file_id],
+        queue="audito-production",
     )

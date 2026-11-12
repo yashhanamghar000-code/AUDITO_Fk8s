@@ -16,10 +16,13 @@ from app.clients.data_client import (
 )
 from app.clients.embedding_client import EmbeddingServiceClient
 from app.clients.llm_client import LlmServiceClient
+from app.clients.null_tts_client import NullTtsClient
 from app.clients.reranker_client import RerankerServiceClient
 from app.clients.sparseindex_client import SparseIndexServiceClient
+from app.clients.tts_client import TtsServiceClient
 from app.clients.vectorstore_client import VectorStoreServiceClient
 from app.config.settings import Settings, settings as default_settings
+from app.core.interfaces.tts_client import ITTSClient
 from app.infrastructure.email.abstract_api_email_verifier import AbstractApiEmailVerifier
 from app.infrastructure.email.resend_email_sender import ResendEmailSender
 from app.services.chat_workflow_service import ChatWorkflowService
@@ -28,6 +31,7 @@ from app.services.notification_service import NotificationService
 from app.services.retrieval_service import RetrievalService
 from app.services.session_service import SessionService
 from app.services.summarization_service import SummarizationService
+from app.services.tts_service import TTSService
 
 
 class SharedSingletons:
@@ -44,6 +48,15 @@ class SharedSingletons:
         self.llm_client = LlmServiceClient(cfg.llm_service_url)
         self.vector_store = VectorStoreServiceClient(cfg.vectorstore_service_url)
         self.sparse_index = SparseIndexServiceClient(cfg.sparseindex_service_url)
+
+        # The ONE branch in the whole codebase that knows whether TTS is
+        # turned on. Everything downstream (TTSService, tts_router) is
+        # typed against ITTSClient and never sees this decision — remove
+        # add-ai-tts-service from your deployment, or flip TTS_ENABLED=false,
+        # and nothing else has to change.
+        self.tts_client: ITTSClient = (
+            TtsServiceClient(cfg.tts_service_url) if cfg.tts_enabled else NullTtsClient()
+        )
 
         self.conversation_repo = ConversationRepositoryClient(cfg.data_service_url)
         self.chat_message_repo = ChatMessageRepositoryClient(cfg.data_service_url)
@@ -66,6 +79,7 @@ class SharedSingletons:
             llm_client=self.llm_client,
             retrieval_service=self.retrieval_service,
         )
+        self.tts_service = TTSService(tts_client=self.tts_client)
 
         self.email_verifier = AbstractApiEmailVerifier(api_key=cfg.abstract_api_key)
         self.email_sender = ResendEmailSender(
@@ -89,6 +103,7 @@ class Container:
     chat_workflow_service: ChatWorkflowService
     summarization_service: SummarizationService
     notification_service: NotificationService
+    tts_service: TTSService
 
 
 _singletons: Optional[SharedSingletons] = None
@@ -114,4 +129,5 @@ def build_container(cfg: Settings = default_settings) -> Container:
         chat_workflow_service=shared.chat_workflow_service,
         summarization_service=shared.summarization_service,
         notification_service=shared.notification_service,
+        tts_service=shared.tts_service,
     )

@@ -136,26 +136,43 @@ class QdrantVectorStore(IVectorStore):
             if last_error is not None:
                 raise last_error
 
-    def search(self, query_vector: List[float], user_id: str, top_k: int, file_ids: Optional[List[str]] = None) -> List[DocumentChunk]:
+    def search(
+        self,
+        query_vector: List[float],
+        user_id: str,
+        top_k: int,
+        file_ids: Optional[List[str]] = None,
+    ) -> List[DocumentChunk]:
 
-        if not file_ids:
-            return[]     
-
-        must = [FieldCondition(
-            key="user_id", 
-            match=MatchValue(value=user_id)
+        # Always restrict retrieval to the authenticated user.
+        #
+        # This is the tenant-isolation boundary.
+        must = [
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
             )
         ]
-        must.append(
-            FieldCondition(
-                key="file_id",
-                match=MatchAny(any=[str(f) for f in file_ids])
+
+        # If specific files were selected, restrict retrieval
+        # to those files.
+        #
+        # If file_ids is None/empty, do NOT add a file filter.
+        # Qdrant will then search all documents belonging to
+        # this user.
+        if file_ids:
+            must.append(
+                FieldCondition(
+                    key="file_id",
+                    match=MatchAny(
+                        any=[str(file_id) for file_id in file_ids]
+                    ),
+                )
             )
-        )
 
         qfilter = Filter(must=must)
-        
-        search_params = SearchParams(exact=True) 
+
+        search_params = SearchParams(exact=True)
 
         response = self._client.query_points(
             collection_name=self._collection_name,
@@ -164,8 +181,12 @@ class QdrantVectorStore(IVectorStore):
             limit=top_k,
             search_params=search_params,
         )
+
         return [
-            DocumentChunk(content=hit.payload.get("text", ""), metadata=hit.payload)
+            DocumentChunk(
+                content=hit.payload.get("text", ""),
+                metadata=hit.payload,
+            )
             for hit in response.points
         ]
 

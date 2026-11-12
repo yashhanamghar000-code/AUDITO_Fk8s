@@ -11,6 +11,13 @@ def _env_int(key: str, default: int) -> int:
     return int(raw) if raw is not None else default
 
 
+def _env_bool(key: str, default: bool) -> bool:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     
@@ -21,10 +28,18 @@ class Settings:
     sparseindex_service_url: str = field(default_factory=lambda: _env("SPARSEINDEX_SERVICE_URL", "http://sparseindex-service:8005"))
     data_service_url: str = field(default_factory=lambda: _env("DATA_SERVICE_URL", "http://data-service:8007"))
     auth_service_url: str = field(default_factory=lambda: _env("AUTH_SERVICE_URL", "http://auth-service:8008"))
+    tts_service_url: str = field(default_factory=lambda: _env("TTS_SERVICE_URL", "http://tts-service:8009"))
+    # Single switch to add/remove the whole feature. Set to false (or just
+    # stop shipping TTS_SERVICE_URL) and container.py wires in NullTtsClient
+    # instead — no other file needs to change, and the container/service
+    # folder can be deleted from the deployment entirely.
+    tts_enabled: bool = field(default_factory=lambda: _env_bool("TTS_ENABLED", True))
 
     top_k_per_query: int = field(default_factory=lambda: _env_int("TOP_K_PER_QUERY", 15))
     final_docs_per_query: int = field(default_factory=lambda: _env_int("FINAL_DOCS_PER_QUERY", 6))
     max_total_context_docs: int = field(default_factory=lambda: _env_int("MAX_TOTAL_CONTEXT_DOCS", 18))
+    # How many earlier messages of the conversation are sent to the model so follow-ups resolve.
+    chat_history_messages: int = field(default_factory=lambda: _env_int("CHAT_HISTORY_MESSAGES", 6))
 
     storage_dir: str = field(default_factory=lambda: _env("STORAGE_DIR", "./storage"))
     temp_upload_dir: str = field(default_factory=lambda: _env("TEMP_UPLOAD_DIR", "./temp_uploads"))

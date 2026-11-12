@@ -7,10 +7,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - auditoai.online
+        - audito.local
       secretName: audito-tls
   rules:
-    - host: auditoai.online
+    - host: audito.local
       http:
         paths:
           - path: /api

@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: reranker-service
-          image: yashhanamghar/audito-reranker-service:latest
-          imagePullPolicy: Never
+          image: harshpaygude/audito-reranker-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8002
 

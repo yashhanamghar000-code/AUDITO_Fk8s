@@ -4,6 +4,8 @@ metadata:
   name: llm-service-config
   namespace: audito
 data:
-  MISTRAL_ENDPOINT: "https://api.mistral.ai/v1"
-  MISTRAL_MODEL: "mistral-large-latest"
-  LLM_TEMPERATURE: "0.1"
+  ANTHROPIC_MODEL: "claude-opus-5-5"
+  ANTHROPIC_EFFORT: "medium"
+  ANTHROPIC_MAX_TOKENS: "16000"
+# ANTHROPIC_API_KEY comes from the Secret "llm-service-secret" (created out-of-band, never committed):
+#   kubectl -n audito create secret generic llm-service-secret --from-file=ANTHROPIC_API_KEY=<file>

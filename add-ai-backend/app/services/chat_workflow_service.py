@@ -1,7 +1,8 @@
 
 import re
 import json
-from typing import Any, Dict, List, Optional, TypedDict, Annotated
+import inspect
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Annotated
 from operator import add
 
 from langgraph.graph import StateGraph, START, END
@@ -9,9 +10,19 @@ from langgraph.graph import StateGraph, START, END
 from add_ai_core.entities.chat import ChatAnswer, Citation
 from add_ai_core.entities.document import DocumentChunk
 from add_ai_core.interfaces.llm_client import ILLMClient
+from app.prompts.audito_system_prompt import (
+    FOLLOWUP_DELIMITER,
+    SOURCES_DELIMITER,
+    get_system_prompt,
+)
 from app.services.retrieval_service import RetrievalService
 
-FOLLOWUP_DELIMITER = "###FOLLOWUPS###"
+# Prior conversation turns are sent to the model so follow-ups such as
+# "explain point 3" resolve. Each prior message is capped so one very long
+# earlier answer cannot crowd out the freshly retrieved evidence.
+MAX_HISTORY_MESSAGE_CHARS = 4000
+# Citations shown to the user when the model reports which sources it used.
+MAX_CITATIONS_USED = 6
 
 
 class AgentState(TypedDict):
@@ -25,6 +36,7 @@ class AgentState(TypedDict):
     follow_up_questions: List[str]
     citations: List[Dict[str, Any]]
     selected_file_ids: List[str]
+    history_pairs: List[Tuple[str, str]]
 
 
 class ChatWorkflowService:
@@ -42,15 +54,39 @@ class ChatWorkflowService:
         self._top_k_per_query = top_k_per_query
         self._final_docs_per_query = final_docs_per_query
         self._max_total_context_docs = max_total_context_docs
+        # Per-request tuning (max_tokens / effort) is only passed to LLM
+        # clients whose `complete` accepts it, so older/fake clients keep working.
+        try:
+            self._llm_accepts_opts = "max_tokens" in inspect.signature(llm_client.complete).parameters
+        except (TypeError, ValueError):
+            self._llm_accepts_opts = False
         self._graph = self._build_graph()
 
-    def run(self, query: str, user_id: str, session_id: str, selected_file_ids: Optional[List[str]] = None) -> ChatAnswer:
+    def _complete(self, messages: List[Tuple[str, str]], **opts: Any) -> str:
+        if opts and self._llm_accepts_opts:
+            return self._llm.complete(messages, **opts)
+        return self._llm.complete(messages)
+
+    def run(
+        self,
+        query: str,
+        user_id: str,
+        session_id: str,
+        selected_file_ids: Optional[List[str]] = None,
+        chat_history: Optional[List[Tuple[str, str]]] = None,
+    ) -> ChatAnswer:
+        """`chat_history` is the earlier turns of THIS conversation as
+        (role, text) pairs with role 'user' or 'assistant', oldest first."""
+        history_pairs = [(r, t) for r, t in (chat_history or []) if t and str(t).strip()]
         initial_state: AgentState = {
             "query": query,
             "user_id": user_id,
             "session_id": session_id,
             "selected_file_ids": selected_file_ids or [],
-            "chat_history": [],
+            "chat_history": [
+                f"{'User' if r == 'user' else 'Bot'}: {t[:600]}" for r, t in history_pairs[-6:]
+            ],
+            "history_pairs": history_pairs,
             "sub_queries": [],
             "retrieved_docs": [],
             "response": "",
@@ -87,8 +123,13 @@ class ChatWorkflowService:
     def _decompose_query(self, query: str, chat_history: List[str]) -> List[str]:
         history_str = "\n".join(chat_history[-6:]) if chat_history else "No prior history."
         decomposition_prompt = (
-            "You are an advanced Query Rewriter and Decomposition engine optimized for dense financial data retrieval.\n"
-            "Your task is to produce 1 to 3 optimized search queries for analyzing financial annual reports based on the user question.\n\n"
+            "You are an advanced Query Rewriter and Decomposition engine for retrieval over a user's uploaded documents "
+            "(reports, contracts, policies, manuals, financial statements and similar).\n"
+            "Your task is to produce 1 to 3 optimized search queries based on the user question.\n\n"
+            "FOLLOW-UPS: If the user input refers back to the conversation (e.g. 'explain point 3', 'give me more details', "
+            "'what about the second document', 'compare both', 'the complete process'), use the Chat History to rewrite it as "
+            "fully self-contained search queries that name the actual topic, entities, figures or document it refers to. "
+            "Never output a query that only makes sense with the history.\n\n"
             "CRITICAL: If the question compares, contrasts, or asks about MULTIPLE named entities/companies "
             "(e.g. 'compare Tata and Mahindra', 'net profit for both companies'), you MUST generate one separate "
             "sub-query PER entity, each explicitly naming that entity (e.g. 'Tata Motors net profit', "
@@ -98,7 +139,8 @@ class ChatWorkflowService:
             f"Chat History:\n{history_str}\n\nRaw User Input: {query}"
         )
         try:
-            raw = self._llm.complete([("user", decomposition_prompt)]).strip()
+            # Short JSON-only task: small output cap and the cheapest effort.
+            raw = self._complete([("user", decomposition_prompt)], max_tokens=600, effort="low").strip()
             raw = re.sub(r"^```(json)?|```$", "", raw, flags=re.MULTILINE).strip()
             queries = json.loads(raw)
             if isinstance(queries, list) and len(queries) > 0:
@@ -150,26 +192,42 @@ class ChatWorkflowService:
         return {"retrieved_docs": all_final_docs}
 
     def _generate_node(self, state: AgentState) -> Dict[str, Any]:
-        if not state["retrieved_docs"]:
+        docs = state["retrieved_docs"]
+        if not docs:
             return {
-                "response": "Data could not be localized within any current report segments.",
+                "response": (
+                    "I could not find information relevant to your question in your uploaded documents. "
+                    "Try rephrasing the question, or check that the document that contains the answer has finished processing."
+                ),
                 "chat_history": [],
                 "follow_up_questions": [],
                 "citations": [],
             }
 
-        context_blocks = []
-        for i, d in enumerate(state["retrieved_docs"], start=1):
-            context_blocks.append(f"[CHUNK {i} | Source: {d.source} | Page: {d.page}]\n{d.content}")
-        context_str = "\n\n".join(context_blocks)
+        context_str = self._build_context(docs)
 
-        citations: List[Dict[str, Any]] = self._build_citations(state["retrieved_docs"])
+        messages: List[Tuple[str, str]] = [("system", self._build_system_prompt())]
+        messages.extend(self._history_messages(state.get("history_pairs") or []))
+        messages.append((
+            "user",
+            "Retrieved document passages (these are the only evidence available for this answer):\n\n"
+            f"{context_str}\n\nQuestion: {state['query']}",
+        ))
 
-        system_prompt = self._build_system_prompt()
-        user_prompt = f"Context:\n{context_str}\n\nQuestion: {state['query']}"
+        raw_content = self._complete(messages)
+        answer_text, used_sources, follow_up_questions = self._parse_model_output(raw_content)
 
-        raw_content = self._llm.complete([("system", system_prompt), ("user", user_prompt)])
-        answer_text, follow_up_questions = self._split_answer_and_followups(raw_content)
+        if used_sources is None:
+            # The model did not report which passages it used (e.g. the answer was
+            # cut off at the token limit before the tail): fall back to the top-ranked passages.
+            citation_docs, max_citations = docs, 3
+        else:
+            # Only passages the model says it relied on become citations; every
+            # number is checked against what was really retrieved, so a citation
+            # can never point at a document/page that was not in the evidence.
+            citation_docs = [docs[n - 1] for n in used_sources if 1 <= n <= len(docs)]
+            max_citations = MAX_CITATIONS_USED
+        citations: List[Dict[str, Any]] = self._build_citations(citation_docs, max_citations=max_citations)
 
         return {
             "response": answer_text,
@@ -177,6 +235,63 @@ class ChatWorkflowService:
             "follow_up_questions": follow_up_questions,
             "citations": citations,
         }
+
+    @staticmethod
+    def _build_context(docs: List[DocumentChunk]) -> str:
+        blocks = []
+        for i, d in enumerate(docs, start=1):
+            body = d.content
+            # The parser prepends an internal "ATTENTION LLM: FILE ... | PAGE ..." line
+            # to every chunk for retrieval; the SOURCE label below replaces it.
+            if body.startswith("ATTENTION LLM:"):
+                parts = body.split("\n", 1)
+                body = parts[1] if len(parts) > 1 else ""
+            blocks.append(f"[SOURCE {i} | File: {d.source} | Page: {d.page}]\n{body.strip()}")
+        return "\n\n".join(blocks)
+
+    @staticmethod
+    def _history_messages(pairs: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+        out: List[Tuple[str, str]] = []
+        for role, text in pairs[-6:]:
+            role = "assistant" if role == "assistant" else "user"
+            out.append((role, text[:MAX_HISTORY_MESSAGE_CHARS]))
+        while out and out[0][0] != "user":
+            out.pop(0)
+        return out
+
+    @staticmethod
+    def _parse_json_list(fragment: str) -> Optional[list]:
+        fragment = re.sub(r"^```(json)?|```$", "", fragment.strip(), flags=re.MULTILINE).strip()
+        try:
+            value = json.loads(fragment)
+        except Exception:
+            return None
+        return value if isinstance(value, list) else None
+
+    @classmethod
+    def _parse_model_output(cls, raw: str) -> Tuple[str, Optional[List[int]], List[str]]:
+        """Split the model output into (visible answer, used source numbers, follow-ups).
+
+        `used source numbers` is None when the model emitted no SOURCES tail."""
+        positions = sorted(
+            (raw.find(d), d) for d in (SOURCES_DELIMITER, FOLLOWUP_DELIMITER) if raw.find(d) != -1
+        )
+        if not positions:
+            return raw.strip(), None, []
+
+        answer = raw[: positions[0][0]].strip()
+        used: Optional[List[int]] = None
+        followups: List[str] = []
+        for i, (start, delim) in enumerate(positions):
+            end = positions[i + 1][0] if i + 1 < len(positions) else len(raw)
+            parsed = cls._parse_json_list(raw[start + len(delim): end])
+            if parsed is None:
+                continue
+            if delim == SOURCES_DELIMITER:
+                used = [int(n) for n in parsed if isinstance(n, (int, float)) or str(n).isdigit()]
+            else:
+                followups = [str(q).strip() for q in parsed if str(q).strip()][:3]
+        return answer, used, followups
 
     @staticmethod
     def _build_citations(retrieved_docs: List[DocumentChunk], max_citations: int = 3) -> List[Dict[str, Any]]:
@@ -294,42 +409,8 @@ class ChatWorkflowService:
             "y1": max(w["y1"] for w in matched),
         }
 
-    @staticmethod
-    def _build_system_prompt() -> str:
-        return (
-            "You are an expert precision financial and legal auditor. Your task is to answer the user's question with absolute data integrity.\n"
-            "Use ONLY the facts and structural context provided.\n\n"
-            "CRITICAL RULE : If the data can be printed in the table format then print it, but do not try to print every answer in a table format."
-            "CRITICAL RULE 1: If a metric or number in the text is accompanied by modifiers like 'over', 'more than', 'approx', or 'nearly', "
-            "you MUST include that modifier in your final answer.\n"
-            "CRITICAL RULE 2: If the context contains a Markdown table or data blocks relevant to the user's question, you MUST present the data "
-            "using a clean, standard Markdown table layout. \n"
-            "CRITICAL: Every row of your markdown table MUST be on its own line, separated by an actual physical newline carriage return (\\n). "
-            "NEVER combine rows side-by-side using spaces, words, or double pipes '||'. Each row must start with '|' and end with '|\\n'.\n"
-            "Leave exactly one blank newline before and after the table entirely.\n"
-            "CRITICAL RULE 4: SOURCE TABLE INTEGRITY. Tables extracted from the source PDF may have merged or multi-row headers that got "
-            "flattened, or a header row whose column count doesn't match the data rows below it. Do NOT reproduce a malformed table "
-            "structure verbatim. Instead: identify each data value's actual meaning from the surrounding labels and context, and rebuild a "
-            "clean table with one label per row/column. If you cannot confidently determine which header a given number belongs to, state "
-            "the number as prose with its label instead of forcing it into an uncertain table cell — never guess a header-to-value pairing.\n"
-            "NEVER copy a chunk's raw '| ... | ... |' markdown syntax directly into your answer unedited — always reformat into a clean "
-            "table of your own construction, using only the labels and values you can confidently pair.\n"
-            "CRITICAL RULE 3: ANTI-HALLUCINATION GUARD. Do not answer anything not provided in the text.\n\n"
-            "CRITICAL RULE 6: NO INTERNAL LEAKAGE. The words 'CHUNK', 'chunk', 'context', 'the provided context', 'the given information', "
-            "'the provided text', and any [CHUNK N | Source: ... | Page: ...] labels are internal retrieval scaffolding for YOUR reference "
-            "only — the user must NEVER see them. Never write phrases like 'According to CHUNK 3' or 'based on the provided context' or "
-            "'reviewing the provided chunks'. Instead write as if you personally read the full report — e.g. 'The report states...', "
-            "'According to the FY24 annual report...', or just state the fact directly with no meta-reference to how you found it.\n"
-            "CRITICAL RULE 7: DIRECT ANSWER STYLE. Do not narrate your search process (e.g. 'To answer this, we need to look at...', "
-            "'Let's check if this matches...', 'Upon reviewing...'). Give the final answer directly and confidently. If the answer isn't "
-            "available, say so in one concise sentence (e.g. 'The report doesn't specify this figure.') — do not walk through a multi-step "
-            "process of what you tried and failed to find before concluding that.\n\n"
-            "CRITICAL RULE 5: FOLLOW-UP QUESTIONS. After your complete answer, on its own new line, output exactly the delimiter "
-            f"{FOLLOWUP_DELIMITER} followed immediately by a JSON list of exactly 3 short follow-up questions (each under 12 words) "
-            "that the user is likely to ask next, answerable from this same context. Do not repeat the original question. "
-            "Output nothing else after the JSON list — no markdown fences, no commentary. If you cannot think of 3 good follow-ups "
-            f"grounded in this context, output {FOLLOWUP_DELIMITER} followed by an empty JSON list []."
-        )
+    def _build_system_prompt(self) -> str:
+        return get_system_prompt()
 
     @staticmethod
     def _split_answer_and_followups(raw_content: str):

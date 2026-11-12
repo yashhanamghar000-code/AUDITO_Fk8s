@@ -46,7 +46,7 @@ pipeline {
             steps {
                 withCredentials([
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG'),
-                    string(credentialsId: 'mistral-api-key', variable: 'MISTRAL_API_KEY'),
+                    string(credentialsId: 'anthropic-api-key', variable: 'ANTHROPIC_API_KEY'),
                     file(credentialsId: 'audito-tls-crt', variable: 'TLS_CERT'),
                     file(credentialsId: 'audito-tls-key', variable: 'TLS_KEY')
                 ]) {
@@ -54,7 +54,7 @@ pipeline {
                         set +x
                         kubectl apply -f k8s/namespace.yaml
                         kubectl -n "$K8S_NAMESPACE" create secret generic llm-service-secret \
-                          --from-literal=MISTRAL_API_KEY="$MISTRAL_API_KEY" \
+                          --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
                           --dry-run=client -o yaml | kubectl apply -f -
                         kubectl -n "$K8S_NAMESPACE" create secret tls audito-tls \
                           --cert="$TLS_CERT" --key="$TLS_KEY" \

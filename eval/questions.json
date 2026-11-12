@@ -1,0 +1,99 @@
+[
+  {"id": "Q01", "scenario": "single_pdf_factual", "user": "A",
+   "query": "What is the penalty for late payment under the Helios supply agreement?",
+   "facts": [["1\\.5\\s*(percent|%)"], ["per month", "part thereof|part of a month"]],
+   "pages": [["Vendor_Contract_Helios", 2]]},
+
+  {"id": "Q02", "scenario": "single_pdf_detailed", "user": "A",
+   "query": "Explain the procedure to apply for planned leave, step by step, including who must approve it and the time limits.",
+   "facts": [["10 working days"], ["3 working days"], ["5 consecutive"], ["department head"], ["HR"], ["hand ?over|hands over"]],
+   "pages": [["Employee_Leave_Policy", 3]], "min_words": 150},
+
+  {"id": "Q03", "scenario": "multi_pdf", "user": "A",
+   "query": "Compare Zorblax's headquarters, employee count and statutory auditor in fiscal 2025 versus fiscal 2024.",
+   "facts": [["Pune"], ["Mumbai"], ["3,?150"], ["2,?900"], ["Deshmukh"], ["Kapoor"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 1], ["Zorblax_Annual_Report_FY2025", 5], ["Zorblax_Annual_Report_FY2025", 6],
+             ["Zorblax_Annual_Report_FY2024", 1], ["Zorblax_Annual_Report_FY2024", 3]],
+   "require_both_docs": ["Zorblax_Annual_Report_FY2025", "Zorblax_Annual_Report_FY2024"]},
+
+  {"id": "Q04", "scenario": "different_pages", "user": "A",
+   "query": "List Zorblax's principal risk factors for FY2025 and also tell me how many people it employed and how many plants it ran.",
+   "facts": [["raw material|steel"], ["customer concentration|top three"], ["currency|euro"], ["pressure.vessel|regulat"], ["Rajkot|castings"], ["3,?150"], ["7 (manufacturing )?plants|seven"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 4], ["Zorblax_Annual_Report_FY2025", 5]]},
+
+  {"id": "Q05", "scenario": "comparison", "user": "A",
+   "query": "How did Zorblax's total revenue and net profit change from FY2024 to FY2025, in absolute terms and in percent?",
+   "facts": [["\\b52\\b"], ["\\b7\\b"], ["12(\\.\\d)?\\s*(percent|%)"], ["1[23](\\.\\d+)?\\s*(percent|%)"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 2]]},
+
+  {"id": "Q06", "scenario": "calculation", "user": "A",
+   "query": "Helios paid an invoice of 12,00,000 rupees 20 days late. What late-payment penalty applies under the contract, and how is it calculated?",
+   "facts": [["18,?000"], ["1\\.5"]],
+   "pages": [["Vendor_Contract_Helios", 2]]},
+
+  {"id": "Q07", "scenario": "table", "user": "A",
+   "query": "From the financial summary table, what were Zorblax's operating profit and capital expenditure in FY2025 and in FY2024?",
+   "facts": [["\\b96\\b"], ["\\b81\\b"], ["\\b38\\b"], ["\\b29\\b"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 2]]},
+
+  {"id": "Q08", "scenario": "conflicting_documents", "user": "A",
+   "query": "Where is Zorblax headquartered?",
+   "facts": [["Pune"], ["Mumbai"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 1], ["Zorblax_Annual_Report_FY2024", 1]],
+   "notes": "Documents differ by year; a good answer gives the current location and explains the earlier one."},
+
+  {"id": "Q09", "scenario": "missing_answer", "user": "A",
+   "query": "What was Zorblax's dividend per share for fiscal 2025?",
+   "expect_not_found": true, "allow_if_attributed": ["3\\.50", "FY ?2024|fiscal 2024"],
+   "must_not": ["3\\.5\\d? rupees (per share )?(for|in) (fiscal 2025|FY ?2025)"]},
+
+  {"id": "Q09b", "scenario": "missing_answer", "user": "A",
+   "query": "What is the CEO's favourite colour?",
+   "expect_not_found": true, "must_not": ["\\bblue\\b", "\\bred\\b", "\\bgreen\\b"]},
+
+  {"id": "Q10a", "scenario": "followup_setup", "user": "A", "followup_setup": true,
+   "query": "List the principal risk factors of Zorblax for FY2025.",
+   "facts": [["currency|euro"]], "pages": [["Zorblax_Annual_Report_FY2025", 4]]},
+
+  {"id": "Q10b", "scenario": "followup_history", "user": "A", "after": "Q10a",
+   "query": "Explain point 3 in more detail.",
+   "facts": [["currency|euro"], ["22\\s*(percent|%)"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 4]]},
+
+  {"id": "Q11a", "scenario": "long_document", "user": "A",
+   "query": "Who is the fire marshal for night shifts and what is their extension?",
+   "facts": [["Priya Nambiar"], ["4417"]],
+   "pages": [["Long_Facility_Handbook", 38]]},
+
+  {"id": "Q11b", "scenario": "long_document", "user": "A",
+   "query": "Where is the emergency assembly point for Building C?",
+   "facts": [["northern car park"], ["Gamma-?7"]],
+   "pages": [["Long_Facility_Handbook", 27]]},
+
+  {"id": "Q12", "scenario": "exact_page_citation", "user": "A",
+   "query": "On which page of the Zorblax FY2025 annual report is the auditor's opinion, and what date is it?",
+   "facts": [["14 May 2025"], ["(page|p\\.?)\\s*6\\b"]],
+   "pages": [["Zorblax_Annual_Report_FY2025", 6]]},
+
+  {"id": "Q13", "scenario": "ocr_scanned", "user": "A",
+   "query": "What is the advisory helpline number and how long is the mandatory quarantine period?",
+   "facts": [["1800-?555-?0199"], ["14 days"]],
+   "pages": [["Scanned_Health_Advisory", 1]]},
+
+  {"id": "Q14a", "scenario": "cross_user_isolation", "user": "A",
+   "query": "What is the approved budget for Project Nightingale?",
+   "expect_not_found": true, "must_not": ["\\b77\\b", "Ishaan", "Blue Heron"]},
+
+  {"id": "Q14b", "scenario": "cross_user_isolation_positive", "user": "B",
+   "query": "What is the approved budget for Project Nightingale and who is the programme director?",
+   "facts": [["\\b77\\b"], ["Ishaan"]], "pages": [["UserB_Confidential", 1]]},
+
+  {"id": "Q14c", "scenario": "cross_user_isolation", "user": "B",
+   "query": "What was Zorblax's total revenue in FY2025?",
+   "expect_not_found": true, "must_not": ["\\b482\\b", "\\b430\\b"]},
+
+  {"id": "Q15", "scenario": "detailed_multi_step", "user": "A",
+   "query": "Give me a complete explanation of how leave carry-forward and encashment work, including every exception.",
+   "facts": [["12"], ["31 March"], ["30 days"], ["Leh"], ["15"]],
+   "pages": [["Employee_Leave_Policy", 4]], "min_words": 100}
+]

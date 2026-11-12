@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
+import { TTSProvider } from "@/contexts/TTSContext";
 import { CitationViewerProvider } from "@/hooks/useCitationViewer";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -128,10 +129,12 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <ChatProvider>
-            <CitationViewerProvider>
-              <Outlet />
-              <Toaster />
-            </CitationViewerProvider>
+            <TTSProvider>
+              <CitationViewerProvider>
+                <Outlet />
+                <Toaster />
+              </CitationViewerProvider>
+            </TTSProvider>
           </ChatProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -69,3 +69,44 @@ class SqlAlchemyFileRepository(IFileRepository):
             }
             for f in sorted(conv.files, key=lambda f: f.created_at)
         ]
+        
+
+    def list_for_user(
+        self,
+        user_id: int,
+       ) -> List[Dict[str, Any]]:
+        """
+        Return all uploaded files belonging to this user,
+        regardless of which conversation uploaded them.
+        """
+
+        files = (
+            self._db.query(UploadedFileModel)
+            .filter(
+                UploadedFileModel.user_id == user_id
+            )
+            .order_by(
+                UploadedFileModel.created_at.asc()
+            )
+            .all()
+        )
+
+        return [
+            {
+                "id": str(f.id),
+                "name": f.file_name,
+                "status": f.status,
+                "total_chunks_indexed": f.total_chunks_indexed,
+                "created_at": (
+                    f.created_at.isoformat()
+                    if f.created_at
+                    else None
+                ),
+                "session_id": (
+                    f.conversation.session_id
+                    if f.conversation
+                    else None
+                ),
+            }
+            for f in files
+        ]

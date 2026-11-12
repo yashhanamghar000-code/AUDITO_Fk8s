@@ -1,7 +1,10 @@
 node_modules
-dist
 .output
+dist
+build
 .git
+.gitignore
 .env
-.env.local
+.env.*
 npm-debug.log*
+.DS_Store

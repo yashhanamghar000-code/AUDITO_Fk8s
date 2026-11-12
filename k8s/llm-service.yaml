@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: llm-service
-          image: yashhanamghar/audito-llm-service:latest
-          imagePullPolicy: IfNotPresent
+          image: harshpaygude/audito-llm-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8003
           envFrom:

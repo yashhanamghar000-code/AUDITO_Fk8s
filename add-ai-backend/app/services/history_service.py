@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 from add_ai_core.interfaces.repositories import (
-    IChatMessageRepository, IConversationRepository, IFileRepository,
+    IChatMessageRepository,
+    IConversationRepository,
+    IFileRepository,
 )
 
 
@@ -17,28 +19,96 @@ class HistoryService:
         self._messages = chat_message_repository
         self._files = file_repository
 
-    def list_conversations(self, user_id: int) -> List[Dict[str, Any]]:
+    def list_conversations(
+        self,
+        user_id: int,
+    ) -> List[Dict[str, Any]]:
         return self._conversations.list_for_user(user_id)
 
-    def create_pending_file(self, user_id: int, session_id: str, file_name: str, file_path: str) -> Any:
-       
-        return self._files.create_pending(user_id, session_id, file_name, file_path)
+    def create_pending_file(
+        self,
+        user_id: int,
+        session_id: str,
+        file_name: str,
+        file_path: str,
+    ) -> Any:
+        return self._files.create_pending(
+            user_id,
+            session_id,
+            file_name,
+            file_path,
+        )
 
-    def get_owned_file(self, user_id: int, file_id: int) -> Optional[Any]:
-    
-        return self._files.get_owned(user_id, file_id)
+    def get_owned_file(
+        self,
+        user_id: int,
+        file_id: int,
+    ) -> Optional[Any]:
+        return self._files.get_owned(
+            user_id,
+            file_id,
+        )
 
-    def list_files_for_conversation(self, user_id: int, session_id: str) -> List[Dict[str, Any]]:
-        return self._files.list_for_conversation(user_id, session_id)
+    def list_files_for_conversation(
+        self,
+        user_id: int,
+        session_id: str,
+    ) -> List[Dict[str, Any]]:
+        return self._files.list_for_conversation(
+            user_id,
+            session_id,
+        )
 
-    def get_chat_history(self, user_id: int, session_id: str) -> List[Dict[str, Any]]:
-        return self._messages.get_history(user_id, session_id)
+    def list_files_for_user(
+        self,
+        user_id: int,
+    ) -> List[Dict[str, Any]]:
+        return self._files.list_for_user(
+            user_id,
+        )
 
-    def save_chat_turn(self, user_id: int, session_id: str, query: str, response: str) -> None:
-        self._messages.save_turn(user_id, session_id, query, response)
+    def get_chat_history(
+        self,
+        user_id: int,
+        session_id: str,
+    ) -> List[Dict[str, Any]]:
+        return self._messages.get_history(
+            user_id,
+            session_id,
+        )
 
-    def delete_conversation(self, user_id: int, session_id: str) -> None:
-        self._conversations.delete(user_id, session_id)
+    def save_chat_turn(
+        self,
+        user_id: int,
+        session_id: str,
+        query: str,
+        response: str,
+    ) -> None:
+        self._messages.save_turn(
+            user_id,
+            session_id,
+            query,
+            response,
+        )
 
-    def update_file_status(self, file_id: int, status: str, total_chunks_indexed: int = 0) -> None:
-        self._files.update_status(file_id, status, total_chunks_indexed)
+    def delete_conversation(
+        self,
+        user_id: int,
+        session_id: str,
+    ) -> None:
+        self._conversations.delete(
+            user_id,
+            session_id,
+        )
+
+    def update_file_status(
+        self,
+        file_id: int,
+        status: str,
+        total_chunks_indexed: int = 0,
+    ) -> None:
+        self._files.update_status(
+            file_id,
+            status,
+            total_chunks_indexed,
+        )

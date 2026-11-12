@@ -1,12 +1,19 @@
 import traceback
+
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 
 from app.api.dependencies import get_container, get_current_user
+from app.clients.llm_client import LlmServiceError
+from app.config.settings import settings
 from app.container import Container
 
-router = APIRouter(prefix="/api", tags=["chat"])
+
+router = APIRouter(
+    prefix="/api",
+    tags=["chat"],
+)
 
 
 @router.post("/chat")
@@ -18,53 +25,161 @@ async def secure_chat(
     current_user: SimpleNamespace = Depends(get_current_user),
 ):
     user_id = str(current_user.id)
+
     try:
-        # Never trust the client's file_ids as the sole source of truth for
-        # what this answer is allowed to see. Resolve the files that are
-        # ACTUALLY still indexed for this user's session from the database.
-        # This is what makes a deleted file's data stop being searchable
-        # the moment it's deleted, and stops a stale/leftover client-side
-        # file list (e.g. from another conversation) from ever widening
-        # the search beyond this session's own documents.
-        session_files = container.history_service.list_files_for_conversation(current_user.id, session_id)
-        indexed_file_ids = {f["id"] for f in session_files if f["status"] == "indexed"}
+        # =========================================================
+        # DOCUMENT SCOPE
+        #
+        # Documents belong to the USER, not to the CHAT.
+        #
+        # session_id:
+        #   - identifies the conversation
+        #   - controls chat history
+        #
+        # user_id:
+        #   - identifies document ownership
+        #   - controls document retrieval
+        #
+        # file_id:
+        #   - optionally restricts retrieval to selected files
+        # =========================================================
 
-        if not indexed_file_ids:
-            raise HTTPException(
-                status_code=404,
-                detail="No documents are available in this conversation. Upload a document before asking a question.",
-            )
+        user_files = container.history_service.list_files_for_user(
+            current_user.id
+        )
 
-        requested_file_ids = [f.strip() for f in file_ids.split(",") if f.strip()] if file_ids else []
+        # Only indexed files can participate in RAG.
+        indexed_file_ids = {
+            str(file_record["id"])
+            for file_record in user_files
+            if str(file_record.get("status", "")).lower() == "indexed"
+        }
+
+        # =========================================================
+        # Parse file IDs explicitly selected by the frontend.
+        #
+        # Example:
+        #
+        #   "10,12,15"
+        #
+        # becomes:
+        #
+        #   ["10", "12", "15"]
+        # =========================================================
+
+        requested_file_ids = (
+            [
+                file_id.strip()
+                for file_id in file_ids.split(",")
+                if file_id.strip()
+            ]
+            if file_ids
+            else []
+        )
+
+        # =========================================================
+        # CASE 1:
+        # User explicitly selected one or more documents.
+        #
+        # Only allow files that:
+        #   1. belong to this user
+        #   2. are indexed
+        # =========================================================
+
         if requested_file_ids:
-            # Client wants to scope to specific files — honor only the ones
-            # that actually still exist (and belong to this session); drop
-            # anything stale (e.g. a file id from a document that has since
-            # been deleted).
-            selected_file_ids = [f for f in requested_file_ids if f in indexed_file_ids]
+
+            selected_file_ids = [
+                file_id
+                for file_id in requested_file_ids
+                if file_id in indexed_file_ids
+            ]
+
             if not selected_file_ids:
                 raise HTTPException(
                     status_code=404,
-                    detail="The selected document(s) are no longer available. Please refresh and try again.",
+                    detail=(
+                        "The selected document(s) are no longer "
+                        "available or are not indexed. "
+                        "Please refresh and try again."
+                    ),
                 )
+
+        # =========================================================
+        # CASE 2:
+        # No specific document was selected.
+        #
+        # None means:
+        #
+        #   Search ALL indexed documents belonging to this user.
+        #
+        # We intentionally do NOT create a list of file IDs here.
+        # The vector store and sparse index will perform user-wide
+        # retrieval.
+        # =========================================================
+
         else:
-            # No explicit selection from the client — default to every
-            # currently-indexed file IN THIS SESSION ONLY, never the user's
-            # entire upload history across other conversations.
-            selected_file_ids = list(indexed_file_ids)
+
+            selected_file_ids = None
+
+            if not indexed_file_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No indexed documents are available for "
+                        "your account. Upload and index a document "
+                        "before asking a document-based question."
+                    ),
+                )
+
+        # =========================================================
+        # RUN RAG WORKFLOW
+        # =========================================================
+
+        # Earlier turns of THIS conversation (ownership-checked by user_id +
+        # session_id in the data service) so follow-up questions resolve.
+        prior = container.history_service.get_chat_history(current_user.id, session_id)
+        chat_history = [
+            ("user" if m.get("sender") == "user" else "assistant", m.get("text", ""))
+            for m in prior
+        ][-settings.chat_history_messages:]
 
         answer = container.chat_workflow_service.run(
             query=query,
             user_id=user_id,
             session_id=session_id,
             selected_file_ids=selected_file_ids,
+            chat_history=chat_history,
         )
 
-        container.history_service.save_chat_turn(current_user.id, session_id, query, answer.response_text)
+        # =========================================================
+        # SAVE CHAT HISTORY
+        #
+        # Chat history remains tied to session_id.
+        # =========================================================
+
+        container.history_service.save_chat_turn(
+            current_user.id,
+            session_id,
+            query,
+            answer.response_text,
+        )
+
         return answer.to_dict()
 
     except HTTPException:
         raise
-    except Exception as e:
+
+    except LlmServiceError as e:
+        # Already a user-safe message (rate limit, timeout, overload, refusal...).
+        print(f"[Chat] LLM service error category={e.category} status={e.status_code}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+    except Exception:
+        # Full detail goes to the server log only; the client gets a generic
+        # message so internal hostnames / exception text are never exposed.
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"LLM Orchestration Error: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Something went wrong while generating the answer. Please try again.",
+        )

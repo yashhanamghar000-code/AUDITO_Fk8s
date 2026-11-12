@@ -8,6 +8,7 @@ from app.api.routers.document_router import router as document_router
 from app.api.routers.health_router import router as health_router
 from app.api.routers.session_router import router as session_router
 from app.api.routers.summarize_router import router as summarize_router
+from app.api.routers.tts_router import router as tts_router
 from app.api.routers.upload_router import router as upload_router
 
 app = FastAPI(title="AUDITO AI — API Gateway (add-ai-backend)")
@@ -28,3 +29,4 @@ app.include_router(chat_router)
 app.include_router(session_router)
 app.include_router(document_router)
 app.include_router(summarize_router)
+app.include_router(tts_router)

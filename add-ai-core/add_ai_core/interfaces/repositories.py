@@ -65,3 +65,10 @@ class IFileRepository(ABC):
     @abstractmethod
     def list_for_conversation(self, user_id: int, session_id: str) -> List[Dict[str, Any]]:
         raise NotImplementedError
+
+    @abstractmethod
+    def list_for_user(
+        self,
+        user_id: int,
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError

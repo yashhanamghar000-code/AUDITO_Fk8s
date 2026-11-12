@@ -7,6 +7,9 @@ import {
   ThumbsDown,
   RefreshCw,
   Share2,
+  Volume2,
+  Square,
+  Loader2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +20,7 @@ import { AuditoLogo } from "@/components/brand/AuditoLogo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
+import { useTTS } from "@/contexts/TTSContext";
 import CitationChip from "@/components/citation/CitationChip";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 
@@ -55,7 +59,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 }
 
 function UserAvatar() {
-  const { speakingMessageId, toggleSpeak,  user } = useAuth();
+  const { user } = useAuth();
   const initial = (user?.name ?? "U").slice(0, 1).toUpperCase();
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
@@ -65,9 +69,11 @@ function UserAvatar() {
 }
 
 export function MessageBubble({ message, isLast }: { message: Message; isLast?: boolean }) {
-  const { speakingMessageId, toggleSpeak,  regenerate, reactMessage, isStreaming, sendMessage } = useChat();
+  const { regenerate, reactMessage, isStreaming, sendMessage } = useChat();
+  const { available: ttsAvailable, playingMessageId, playbackState, toggleSpeak } = useTTS();
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const isThisPlaying = playingMessageId === message.id;
 
   async function copyAll() {
     await navigator.clipboard.writeText(message.content);
@@ -158,6 +164,21 @@ export function MessageBubble({ message, isLast }: { message: Message; isLast?: 
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </IconAction>
+            {ttsAvailable && (
+              <IconAction
+                label={isThisPlaying ? "Stop" : "Listen"}
+                onClick={() => toggleSpeak(message.id, message.content)}
+                active={isThisPlaying}
+              >
+                {isThisPlaying && playbackState === "loading" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : isThisPlaying ? (
+                  <Square className="h-3.5 w-3.5" fill="currentColor" />
+                ) : (
+                  <Volume2 className="h-3.5 w-3.5" />
+                )}
+              </IconAction>
+            )}
             <IconAction
               label="Share"
               onClick={() => {
@@ -166,17 +187,6 @@ export function MessageBubble({ message, isLast }: { message: Message; isLast?: 
               }}
             >
               <Share2 className="h-3.5 w-3.5" />
-            </IconAction>
-            <IconAction
-              label={speakingMessageId === message.id ? "Stop" : "Listen"}
-              onClick={() => toggleSpeak(message.id, message.content)}
-              active={speakingMessageId === message.id}
-            >
-              {speakingMessageId === message.id ? (
-                <VolumeX className="h-3.5 w-3.5" />
-              ) : (
-                <Volume2 className="h-3.5 w-3.5" />
-              )}
             </IconAction>
           </div>
         )}
