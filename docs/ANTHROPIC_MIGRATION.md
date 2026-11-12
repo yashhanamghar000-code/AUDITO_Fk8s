@@ -55,3 +55,6 @@ Failures investigated:
 - **Judge "unsupported" claims on Q11a/Q11b (long handbook):** the judge's fact sheet lacked the planted facts, so it flagged correct answers. Both cited the right pages (38 and 27). Treated as a judge artifact.
 - **Q09b:** one mild genuine point: the answer attributed the March 2022 appointment date to the FY2024 page 1 instead of FY2025.
 - The harness's optional comparison pass against the old backend returned 502 for all cases (the old provider is retired) and is irrelevant to the migration.
+
+## Local integration smoke test (rebuilt images, local stack only)
+Register, upload, background processing, chat with page citations and 3 follow-ups, a history-dependent follow-up ("example for 10 lakh" resolved to the late-payment clause), no-token request rejected (403), and a deliberately invalid key returns a safe 502 ("The AI service is temporarily unavailable.") with no key or provider text leaked. Old Gemini containers and the stale Gemini env file were removed locally. Image package lists show no google / genai / openai packages.
