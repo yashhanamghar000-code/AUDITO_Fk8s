@@ -58,3 +58,8 @@ Failures investigated:
 
 ## Local integration smoke test (rebuilt images, local stack only)
 Register, upload, background processing, chat with page citations and 3 follow-ups, a history-dependent follow-up ("example for 10 lakh" resolved to the late-payment clause), no-token request rejected (403), and a deliberately invalid key returns a safe 502 ("The AI service is temporarily unavailable.") with no key or provider text leaked. Old Gemini containers and the stale Gemini env file were removed locally. Image package lists show no google / genai / openai packages.
+
+## Production deployment (2026-11-12, commit aa5fb06)
+Deployed to EC2 (llm-service and backend only; Postgres, Redis, Qdrant, nginx and HTTPS untouched). Rollback images: `audito-llm-service:rollback-2026-11-12`, `audito-backend:rollback-2026-11-12-pre-claude`; env and compose backup plus a pg_dump are in `~/recovery/2026-11-12_pre-claude-deploy/`.
+Real production test through https://auditoai.online (test account, uploaded PDF, two grounded questions plus one not-in-document question): all checks passed with page citations and follow-ups; llm-service logs show `provider=anthropic model=claude-opus-5-5 served_by=claude-opus-5-5` for every call (decomposition and answer), `stop=end_turn`, prompt caching active.
+Known unrelated log errors: the email-validation and welcome-email calls fail for the `example.com` test address.
